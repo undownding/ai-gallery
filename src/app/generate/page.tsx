@@ -37,6 +37,13 @@ type ParsedEvent = {
   data: unknown;
 };
 
+type GenerationRequestPayload = {
+  prompt: string;
+  aspectRatio?: AspectRatio;
+  imageSize?: ImageSize;
+  referenceUploadIds: string[];
+};
+
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">("");
@@ -177,7 +184,7 @@ export default function GeneratePage() {
     setErrorMessage(null);
     setPreviewUpload(null);
 
-    const body = {
+    const body: GenerationRequestPayload = {
       prompt: prompt.trim(),
       aspectRatio: aspectRatio || undefined,
       imageSize: imageSize || undefined,
@@ -185,23 +192,8 @@ export default function GeneratePage() {
     };
 
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-        cache: "no-store",
-      });
-
-      if (!response.ok || !response.body) {
-        const message = await safeReadError(response);
-        throw new Error(message || "Unable to start the generation stream.");
-      }
-
-      await consumeStream(response.body, handleEvent);
+      const stream = await openGenerationStream(body, controller.signal);
+      await consumeStream(stream, handleEvent);
     } catch (error) {
       if ((error as DOMException)?.name === "AbortError") {
         return;
@@ -466,6 +458,30 @@ function FieldGroup({
       {children}
     </div>
   );
+}
+
+async function openGenerationStream(payload: GenerationRequestPayload, signal: AbortSignal) {
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(payload),
+    signal,
+    cache: "no-store",
+    redirect: "follow",
+  });
+
+  if (!response.ok || !response.body) {
+    const message = await safeReadError(response);
+    if (response.redirected && !response.body) {
+      throw new Error(message || "Stream redirect succeeded but no body was returned.");
+    }
+    throw new Error(message || "Unable to start the generation stream.");
+  }
+
+  return response.body;
 }
 
 async function consumeStream(stream: ReadableStream<Uint8Array>, onEvent: (packet: ParsedEvent) => void) {
