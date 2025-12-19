@@ -1,7 +1,7 @@
 import { and, desc, eq, lt, type SQL } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDb, type EnvWithDb } from "@/db/client";
+import { getDb } from "@/db/client";
 import { articles } from "@/db/schema";
 import {getCloudflareContext} from "@opennextjs/cloudflare"
 
@@ -11,6 +11,14 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 
 export async function GET(request: NextRequest) {
+  function clampPageSize(rawLimit: string | null) {
+      const parsed = Number(rawLimit);
+      if (Number.isFinite(parsed)) {
+          return Math.min(Math.max(Math.trunc(parsed), 1), MAX_PAGE_SIZE);
+      }
+      return DEFAULT_PAGE_SIZE;
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const afterId = searchParams.get("afterId");
   const pageSize = clampPageSize(searchParams.get("limit"));
@@ -36,12 +44,4 @@ export async function GET(request: NextRequest) {
       hasMore: nextAfterId !== null,
     },
   });
-}
-
-function clampPageSize(rawLimit: string | null) {
-  const parsed = Number(rawLimit);
-  if (Number.isFinite(parsed)) {
-    return Math.min(Math.max(Math.trunc(parsed), 1), MAX_PAGE_SIZE);
-  }
-  return DEFAULT_PAGE_SIZE;
 }
