@@ -25,20 +25,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     visibilityFilter = and(visibilityFilter, lt(articles.id, afterId));
   }
 
-  const rows = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      text: articles.text,
-      media: articles.media,
-      previewImageId: articles.previewImageId,
-      createdAt: articles.createdAt,
-      updatedAt: articles.updatedAt,
+    const rows = await db.query.articles.findMany({
+        where: visibilityFilter,
+        orderBy: [desc(articles.id)],
+        limit: pageSize,
     })
-    .from(articles)
-    .where(visibilityFilter)
-    .orderBy(desc(articles.id))
-    .limit(pageSize);
 
   const nextAfterId = rows.length === pageSize ? rows[rows.length - 1].id : null;
 

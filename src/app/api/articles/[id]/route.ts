@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import {and, desc, eq} from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
@@ -21,18 +21,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const db = getDb(getCloudflareContext().env);
 
-  const rows = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      text: articles.text,
-      previewImageId: articles.previewImageId,
-      createdAt: articles.createdAt,
-      updatedAt: articles.updatedAt,
-    })
-    .from(articles)
-    .where(and(eq(articles.id, articleId), eq(articles.isPublic, true)))
-    .limit(1);
+  const rows = await db.query.articles.findMany({
+      where: and(eq(articles.id, articleId), eq(articles.isPublic, true)),
+      with: {
+          media: true,
+      },
+  })
 
   const article = rows[0];
 
