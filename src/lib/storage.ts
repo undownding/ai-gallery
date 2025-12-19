@@ -1,28 +1,53 @@
 import dayjs from "dayjs";
-import {NewUpload, Upload, uploads} from "@/db/schema";
-import {v7 as uuidv7} from "uuid";
-import {getCloudflareContext} from "@opennextjs/cloudflare";
-import {getDb} from "@/db/client";
+import { Upload, uploads } from "@/db/schema";
+import { v7 as uuidv7 } from "uuid";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { getDb } from "@/db/client";
+import { eq } from "drizzle-orm";
 
-export async function uploadBase64Image(base64String: string, mimeType: string = 'image/png'): Promise<Upload> {
-    const extMap: Record<string, string> = {
-        "image/png": "png",
-        "image/jpeg": "jpg",
-        "image/jpg": "jpg",
-        "image/gif": "gif",
-        "image/webp": "webp"
-    };
-    const ext = extMap[mimeType] ?? "bin";
+const DEFAULT_MIME_TYPE = "image/png";
+const EXTENSION_MAP: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+};
+
+const INVERSE_EXTENSION_MAP: Record<string, string> = Object.entries(EXTENSION_MAP).reduce(
+    (acc, [mime, ext]) => {
+        acc[ext] = mime;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+function buildObjectKey(mimeType: string) {
+    const ext = EXTENSION_MAP[mimeType] ?? "bin";
     const id = uuidv7();
-    const key = `${dayjs().format("YYYY-MM/DD")}/${id}.${ext}`;
+    return { id, key: `${dayjs().format("YYYY-MM/DD")}/${id}.${ext}` };
+}
 
-    const obj = await getCloudflareContext().env.r2.put(key, Buffer.from(base64String, 'base64'));
+async function persistUpload(id: string, key: string, eTag?: string | null) {
+    return getDb(getCloudflareContext().env)
+        .insert(uploads)
+        .values({ id, key, eTag: eTag ?? "" })
+        .returning()
+        .get();
+}
 
-    return getDb(getCloudflareContext().env).insert(uploads).values({
-        id,
-        key,
-        eTag: obj?.etag ?? ''
-    }).returning().get()
+export async function uploadBinaryImage(data: ArrayBuffer | Buffer, mimeType: string = DEFAULT_MIME_TYPE): Promise<Upload> {
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    const normalizedMime = mimeType || DEFAULT_MIME_TYPE;
+    const { id, key } = buildObjectKey(normalizedMime);
+
+    const obj = await getCloudflareContext().env.r2.put(key, buffer);
+
+    return persistUpload(id, key, obj?.etag);
+}
+
+export async function uploadBase64Image(base64String: string, mimeType: string = DEFAULT_MIME_TYPE): Promise<Upload> {
+    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
@@ -32,4 +57,33 @@ export async function getBase64Image(key: string): Promise<string> {
     }
     const arrayBuffer = await obj.arrayBuffer();
     return Buffer.from(arrayBuffer).toString('base64');
+}
+
+export async function getUploadById(id: string): Promise<Upload | null> {
+    return await (getDb(getCloudflareContext().env)
+        .select()
+        .from(uploads)
+        .where(eq(uploads.id, id))
+        .get()) ?? null;
+}
+
+function mimeTypeFromKey(key: string): string {
+    const ext = key.split('.').pop()?.toLowerCase();
+    if (!ext) {
+        return DEFAULT_MIME_TYPE;
+    }
+    return INVERSE_EXTENSION_MAP[ext] ?? DEFAULT_MIME_TYPE;
+}
+
+export async function getUploadInlineData(uploadId: string): Promise<{ mimeType: string; data: string }> {
+    const upload = await getUploadById(uploadId);
+    if (!upload) {
+        throw new Error(`Upload ${uploadId} not found`);
+    }
+
+    const data = await getBase64Image(upload.key);
+    return {
+        mimeType: mimeTypeFromKey(upload.key),
+        data,
+    };
 }

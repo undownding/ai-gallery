@@ -10,6 +10,7 @@ type GenerateRequestBody = {
     prompt?: string;
     aspectRatio?: AspectRatio;
     imageSize?: ImageSize;
+    referenceUploadIds?: string[];
 };
 
 function sendEvent(controller: ReadableStreamDefaultController<Uint8Array>, event: string, data: unknown) {
@@ -25,17 +26,37 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
     }
 
-    const { prompt, aspectRatio, imageSize } = payload ?? {};
+    const { prompt, aspectRatio, imageSize, referenceUploadIds } = payload ?? {};
 
     if (!prompt || typeof prompt !== "string") {
         return NextResponse.json({ error: "Field 'prompt' is required." }, { status: 400 });
+    }
+
+    let sanitizedUploadIds: string[] = [];
+
+    if (referenceUploadIds !== undefined) {
+        if (!Array.isArray(referenceUploadIds)) {
+            return NextResponse.json({ error: "Field 'referenceUploadIds' must be an array of upload IDs." }, { status: 400 });
+        }
+
+        const trimmedIds = referenceUploadIds.map((id) => (typeof id === "string" ? id.trim() : ""));
+        if (trimmedIds.some((id) => !id)) {
+            return NextResponse.json({ error: "Field 'referenceUploadIds' must contain non-empty strings." }, { status: 400 });
+        }
+
+        const uniqueIds = Array.from(new Set(trimmedIds));
+        if (uniqueIds.length > 8) {
+            return NextResponse.json({ error: "A maximum of 8 reference uploads is supported." }, { status: 400 });
+        }
+
+        sanitizedUploadIds = uniqueIds;
     }
 
     const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
                 let upload: NewUpload | null = null
-                const response = await generateContent(prompt, aspectRatio, imageSize);
+                const response = await generateContent(prompt, aspectRatio, imageSize, sanitizedUploadIds);
                 const candidates = response.candidates ?? [];
 
                 for (const candidate of candidates) {
