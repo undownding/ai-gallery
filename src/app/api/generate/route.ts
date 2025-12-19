@@ -38,9 +38,6 @@ export async function POST(request: NextRequest) {
                 for (const candidate of candidates) {
                     const parts = candidate.content?.parts ?? [];
                     for (const part of parts) {
-                        if (!(part as { thought?: boolean }).thought) {
-                            continue;
-                        }
 
                         const text = (part as { text?: string }).text;
                         if (text) {
@@ -58,7 +55,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                sendEvent(controller, "done", {});
+                sendEvent(controller, "done", response);
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unexpected error";
                 sendEvent(controller, "error", { message });
