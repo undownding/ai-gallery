@@ -1,4 +1,4 @@
-import {and, desc, eq} from "drizzle-orm";
+import {and, eq} from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
@@ -8,13 +8,13 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 export const runtime = "edge";
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const articleId = context.params?.id;
+  const { id: articleId } = await (context.params)
   if (!articleId) {
     return NextResponse.json({ error: "Missing article id." }, { status: 400 });
   }
