@@ -13,11 +13,13 @@ export async function uploadBase64Image(base64String: string, mimeType: string =
         "image/webp": "webp"
     };
     const ext = extMap[mimeType] ?? "bin";
-    const key = `${dayjs().format("YYYY-MM/DD")}/${uuidv7()}.${ext}`;
+    const id = uuidv7();
+    const key = `${dayjs().format("YYYY-MM/DD")}/${id}.${ext}`;
 
     const obj = await getCloudflareContext().env.r2.put(key, Buffer.from(base64String, 'base64'));
 
     return getDb(getCloudflareContext().env).insert(uploads).values({
+        id,
         key,
         eTag: obj?.etag ?? ''
     }).returning().get()
