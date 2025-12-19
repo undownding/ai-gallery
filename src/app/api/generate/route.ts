@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { generateContent, type AspectRatio, type ImageSize } from "@/lib/gemini";
+import {uploadBase64Image} from "@/lib/storage";
+import {NewUpload} from "@/db/schema";
 
 const encoder = new TextEncoder();
 
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
+                let upload: NewUpload | null = null
                 const response = await generateContent(prompt, aspectRatio, imageSize);
                 const candidates = response.candidates ?? [];
 
@@ -47,15 +50,17 @@ export async function POST(request: NextRequest) {
 
                         const inlineData = (part as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
                         if (inlineData?.data) {
-                            sendEvent(controller, "image", {
-                                data: inlineData.data,
-                                mimeType: inlineData.mimeType ?? "image/png",
-                            });
+                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType)
+                            sendEvent(controller, "image", upload);
                         }
                     }
                 }
 
-                sendEvent(controller, "done", response);
+                if (upload) {
+                    sendEvent(controller, "done", upload);
+                } else {
+                    sendEvent(controller, "done", response);
+                }
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unexpected error";
                 sendEvent(controller, "error", { message });
