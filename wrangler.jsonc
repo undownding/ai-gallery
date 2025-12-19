@@ -45,6 +45,7 @@
 			"binding": "db",
 			"database_name": "ai-gallery",
 			"database_id": "89e2c060-ea03-4650-a0d0-cfcceb2e4aa7",
+			"migrations_dir": "drizzle",
 			"remote": true
 		}
 	],
