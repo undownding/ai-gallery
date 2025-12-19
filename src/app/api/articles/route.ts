@@ -5,8 +5,6 @@ import { getDb } from "@/db/client";
 import { articles } from "@/db/schema";
 import {getCloudflareContext} from "@opennextjs/cloudflare"
 
-export const runtime = "edge";
-
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 

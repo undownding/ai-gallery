@@ -5,8 +5,6 @@ import { getDb } from "@/db/client";
 import { articles } from "@/db/schema";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-export const runtime = "edge";
-
 type RouteContext = {
   params: Promise<{
     id: string;

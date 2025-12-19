@@ -57,12 +57,13 @@
 		}
 	],
 	"ai": {
-		"binding": "AI"
-	}
-	/**
-	 * Smart Placement
-	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
+		"binding": "AI",
+        "remote": true
+    }
+  /**
+   * Smart Placement
+   * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+   */
 	// "placement": {  "mode": "smart" }
 	/**
 	 * Bindings
