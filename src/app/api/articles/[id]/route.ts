@@ -26,7 +26,6 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       id: articles.id,
       title: articles.title,
       text: articles.text,
-      media: articles.media,
       previewImageId: articles.previewImageId,
       createdAt: articles.createdAt,
       updatedAt: articles.updatedAt,
