@@ -1,10 +1,10 @@
 import dayjs from "dayjs";
-import {NewUpload, uploads} from "@/db/schema";
+import {NewUpload, Upload, uploads} from "@/db/schema";
 import {v7 as uuidv7} from "uuid";
 import {getCloudflareContext} from "@opennextjs/cloudflare";
 import {getDb} from "@/db/client";
 
-export async function uploadBase64Image(base64String: string, mimeType: string = 'image/png'): Promise<NewUpload> {
+export async function uploadBase64Image(base64String: string, mimeType: string = 'image/png'): Promise<Upload> {
     const extMap: Record<string, string> = {
         "image/png": "png",
         "image/jpeg": "jpg",
@@ -23,4 +23,13 @@ export async function uploadBase64Image(base64String: string, mimeType: string =
         key,
         eTag: obj?.etag ?? ''
     }).returning().get()
+}
+
+export async function getBase64Image(key: string): Promise<string> {
+    const obj = await getCloudflareContext().env.r2.get(key);
+    if (!obj) {
+        throw new Error("Object not found");
+    }
+    const arrayBuffer = await obj.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
 }
