@@ -7,11 +7,15 @@ export type ImageSize = '1K' | '2K' | '4K';
 
 export async function generateContent(prompt: string, aspectRatio?: AspectRatio, imageSize?: ImageSize): Promise<GenerateContentResponse> {
     const apiKey = await getCloudflareContext().env.GEMINI_API_KEY.get()
+    const gatewayToken = await getCloudflareContext().env.AI_GATEWAY_TOKEN.get()
     const baseUrl = await getCloudflareContext().env.AI.gateway('ai-gallery').getUrl('google-ai-studio')
     const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
-            baseUrl
+            baseUrl,
+            headers: {
+                Authorization: `Bearer ${gatewayToken}`
+            }
         }
     });
     return ai.models.generateContent({
