@@ -130,6 +130,7 @@ export default function GeneratePage() {
   }, []);
 
   const handleEvent = useCallback((packet: ParsedEvent) => {
+    console.log(`handleEvent:`, packet);
     if (!packet) return;
     switch (packet.event) {
       case "text": {
