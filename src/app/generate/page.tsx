@@ -186,9 +186,13 @@ export default function GeneratePage() {
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify(body),
         signal: controller.signal,
+        cache: "no-store",
       });
 
       if (!response.ok || !response.body) {
@@ -466,6 +470,7 @@ function FieldGroup({
 async function consumeStream(stream: ReadableStream<Uint8Array>, onEvent: (packet: ParsedEvent) => void) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
+  const delimiterPattern = /\r?\n\r?\n/;
   let buffer = "";
 
   while (true) {
@@ -473,15 +478,17 @@ async function consumeStream(stream: ReadableStream<Uint8Array>, onEvent: (packe
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 
-    let separatorIndex = buffer.indexOf("\n\n");
-    while (separatorIndex !== -1) {
-      const raw = buffer.slice(0, separatorIndex).trim();
-      buffer = buffer.slice(separatorIndex + 2);
+    let match: RegExpExecArray | null;
+    while ((match = delimiterPattern.exec(buffer)) !== null) {
+      const raw = buffer.slice(0, match.index).trim();
+      buffer = buffer.slice(match.index + match[0].length);
+      delimiterPattern.lastIndex = 0;
       const event = parseSsePacket(raw);
       if (event) onEvent(event);
-      separatorIndex = buffer.indexOf("\n\n");
     }
   }
+
+  buffer += decoder.decode();
 
   if (buffer.trim()) {
     const event = parseSsePacket(buffer.trim());
