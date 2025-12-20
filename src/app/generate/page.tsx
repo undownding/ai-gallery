@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownTypewriter } from "react-markdown-typewriter";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -682,9 +682,11 @@ export default function GeneratePage() {
                     className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)]"
                   >
                     {streamedText ? (
-                      <ReactMarkdown className="space-y-3 text-sm leading-relaxed text-[var(--foreground)]">
+                      <MarkdownTypewriter
+                        motionProps={{ className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]" }}
+                      >
                         {streamedText}
-                      </ReactMarkdown>
+                      </MarkdownTypewriter>
                     ) : (
                       <p className="text-xs text-[var(--muted)]">
                         The narration feed prints here once the stream starts.
