@@ -46,23 +46,30 @@ function bufferToReadableStream(buffer: Uint8Array): ReadableStream<Uint8Array> 
     });
 }
 
-async function convertBufferToWebp(buffer: Buffer, env: CloudflareEnv, isBase64: boolean) {
+async function convertBufferToWebp(
+    buffer: Buffer,
+    env: CloudflareEnv,
+    isBase64: boolean,
+): Promise<{ stream: ReadableStream<Uint8Array>; mimeType: string }> {
     const imageBinding = env?.IMAGES;
     if (!imageBinding) {
         throw new Error("Cloudflare IMAGES binding is not configured; unable to convert uploads to WebP.");
     }
 
     try {
-        const inputOptions: ImageInputOptions = {}
+        const inputOptions: ImageInputOptions = {};
         if (isBase64) {
             inputOptions.encoding = "base64";
         }
         const transformer = imageBinding.input(bufferToReadableStream(buffer), inputOptions);
         const transformation = await transformer.output({ format: "image/webp", quality: 85 });
         const response = await transformation.response();
-        const converted = Buffer.from(await response.arrayBuffer());
+        const stream = response.body as ReadableStream<Uint8Array> | null;
+        if (!stream) {
+            throw new Error("Image transformer did not produce a readable stream.");
+        }
         const mimeType = transformation.contentType() || DEFAULT_MIME_TYPE;
-        return { buffer: converted, mimeType };
+        return { stream, mimeType };
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unexpected error";
         throw new Error(`Unable to convert upload to WebP: ${message}`);
@@ -85,10 +92,10 @@ export async function uploadImage(
 ): Promise<Upload> {
     const env = getCloudflareContext().env;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    const { buffer: webpBuffer, mimeType } = await convertBufferToWebp(buffer, env, isBase64);
+    const { stream, mimeType } = await convertBufferToWebp(buffer, env, isBase64);
     const { id, key } = buildObjectKey(owner);
 
-    const obj = await env.r2.put(key, webpBuffer, {
+    const obj = await env.r2.put(key, stream, {
         httpMetadata: { contentType: mimeType },
     });
 
