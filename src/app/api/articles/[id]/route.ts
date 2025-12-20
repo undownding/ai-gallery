@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const article = await db.query.articles.findFirst({
     where: eq(articles.id, articleId),
     with: {
+      author: true,
       thumbnailImage: { with: { upload: true } },
       media: { with: { upload: true } },
       sources: { with: { upload: true } },
@@ -92,6 +93,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const article = await db.query.articles.findFirst({
     where: eq(articles.id, articleId),
     with: {
+      author: true,
       thumbnailImage: { with: { upload: true } },
       media: { with: { upload: true } },
       sources: { with: { upload: true } },

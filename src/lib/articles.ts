@@ -1,6 +1,8 @@
-import type { Article, Upload } from "@/db/schema";
+import type { Article, Upload, User } from "@/db/schema";
 
 export type ArticleAssetPayload = Pick<Upload, "id" | "key" | "eTag" | "createdAt">;
+
+export type ArticleAuthorPayload = Pick<User, "id" | "login" | "name" | "avatarUrl">;
 
 export type ArticleResponsePayload = {
   id: string;
@@ -13,11 +15,13 @@ export type ArticleResponsePayload = {
   media: ArticleAssetPayload[];
   sources: ArticleAssetPayload[];
   viewerCanEdit: boolean;
+  author: ArticleAuthorPayload | null;
 };
 
 type UploadLink = { upload: Upload | null } | null | undefined;
 
 type ArticleWithAssets = Article & {
+  author?: User | null;
   thumbnailImage?: UploadLink;
   media?: UploadLink[];
   sources?: UploadLink[];
@@ -49,5 +53,13 @@ export function serializeArticle(
     media: (article.media ?? []).map((entry) => toAsset(entry)).filter(isAsset),
     sources: (article.sources ?? []).map((entry) => toAsset(entry)).filter(isAsset),
     viewerCanEdit: Boolean(options?.viewerCanEdit),
+    author: article.author
+      ? {
+          id: article.author.id,
+          login: article.author.login,
+          name: article.author.name ?? null,
+          avatarUrl: article.author.avatarUrl ?? null,
+        }
+      : null,
   };
 }

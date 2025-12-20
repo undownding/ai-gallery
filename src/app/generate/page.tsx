@@ -82,6 +82,7 @@ export default function GeneratePage() {
   const router = useRouter();
 
   const controllerRef = useRef<AbortController | null>(null);
+  const articlePersistControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRegistry = useRef(new Set<string>());
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,6 +103,7 @@ export default function GeneratePage() {
   useEffect(() => {
     return () => {
       controllerRef.current?.abort();
+      articlePersistControllerRef.current?.abort();
       previewUrlRegistry.current.forEach((url) => URL.revokeObjectURL(url));
       previewUrlRegistry.current.clear();
     };
@@ -202,70 +204,72 @@ export default function GeneratePage() {
   const createdArticleId = creationStatus === "success" ? articleCreationState.articleId : null;
   const creationError = creationStatus === "error" ? articleCreationState.error : null;
 
-  useEffect(() => {
+  const persistArticleDraft = useCallback(async () => {
     if (status !== "success") return;
     if (!submittedPrompt) return;
     if (!mediaUploadIds.length) return;
-    if (articleCreationState.status !== "idle") return;
     if (!sessionUser) return;
+    if (creationStatus !== "idle") return;
 
-    let cancelled = false;
+    setArticleCreationState({ status: "pending" });
+
+    articlePersistControllerRef.current?.abort();
     const controller = new AbortController();
+    articlePersistControllerRef.current = controller;
 
-    const persistArticle = async () => {
-      setArticleCreationState({ status: "pending" });
-      try {
-        const response = await fetch("/api/articles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: submittedPrompt,
-            media: mediaUploadIds,
-            sourcesId: submittedReferenceIds,
-          }),
-          signal: controller.signal,
-          credentials: "include",
-        });
+    try {
+      const response = await fetch("/api/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: submittedPrompt,
+          media: mediaUploadIds,
+          sourcesId: submittedReferenceIds,
+        }),
+        signal: controller.signal,
+        credentials: "include",
+      });
 
-        if (!response.ok) {
-          const message = (await safeReadError(response)) ?? "Unable to save article.";
-          throw new Error(message);
-        }
-
-        const payload = (await response.json()) as { data?: { id?: string } };
-        const articleId = payload?.data?.id;
-        if (!articleId) {
-          throw new Error("Article id is missing in the response.");
-        }
-
-        if (!cancelled) {
-          setArticleCreationState({ status: "success", articleId });
-        }
-      } catch (error) {
-        if ((error as DOMException)?.name === "AbortError" || cancelled) {
-          return;
-        }
-        setArticleCreationState({
-          status: "error",
-          error: error instanceof Error ? error.message : "Unable to save article.",
-        });
+      if (!response.ok) {
+        const message = (await safeReadError(response)) ?? "Unable to save article.";
+        throw new Error(message);
       }
-    };
 
-    void persistArticle();
+      const payload = (await response.json()) as { data?: { id?: string } };
+      const articleId = payload?.data?.id;
+      if (!articleId) {
+        throw new Error("Article id is missing in the response.");
+      }
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
+      setArticleCreationState({ status: "success", articleId });
+    } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") {
+        return;
+      }
+      setArticleCreationState({
+        status: "error",
+        error: error instanceof Error ? error.message : "Unable to save article.",
+      });
+    } finally {
+      if (articlePersistControllerRef.current === controller) {
+        articlePersistControllerRef.current = null;
+      }
+    }
   }, [
     status,
     submittedPrompt,
     mediaUploadIds,
     submittedReferenceIds,
     sessionUser,
-    articleCreationState.status,
+    creationStatus,
   ]);
+
+  useEffect(() => {
+    if (status !== "success") return;
+    void persistArticleDraft();
+  }, [status, persistArticleDraft]);
+
+  
 
   useEffect(() => {
     if (creationStatus !== "success" || !createdArticleId) {
@@ -361,6 +365,8 @@ export default function GeneratePage() {
   const stopGeneration = useCallback(() => {
     controllerRef.current?.abort();
     controllerRef.current = null;
+    articlePersistControllerRef.current?.abort();
+    articlePersistControllerRef.current = null;
     setStatus("idle");
     setGeneratedUploads([]);
     setArticleCreationState({ status: "idle" });
