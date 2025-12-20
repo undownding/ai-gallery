@@ -83,7 +83,7 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
 
   if (user) {
     return (
-      <div className="inline-flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-4 py-2 text-sm text-[var(--foreground)]">
+      <div className="inline-flex min-h-[3rem] items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 py-2 text-sm text-[var(--foreground)]">
         <div className="flex items-center gap-2">
           {user.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -114,7 +114,7 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
     <div className="flex flex-col items-end gap-1">
       <a
         href={loginHref}
-        className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        className="inline-flex h-12 items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
       >
         <span className="h-2 w-2 rounded-full bg-[var(--accent)]" aria-hidden />
         Sign in with GitHub
