@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
     if (!user) {
       const response = NextResponse.json({ user: null }, { status: 404 });
-      response.cookies.delete(ACCESS_TOKEN_COOKIE, { path: "/" });
+      response.cookies.delete({name: ACCESS_TOKEN_COOKIE, path: "/" });
       return response;
     }
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: { id, login, name, email, avatarUrl } });
   } catch {
     const response = NextResponse.json({ user: null }, { status: 401 });
-    response.cookies.delete(ACCESS_TOKEN_COOKIE, { path: "/" });
+    response.cookies.delete({name: ACCESS_TOKEN_COOKIE,  path: "/" });
     return response;
   }
 }

@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       path: "/",
     });
 
-    response.cookies.delete(GITHUB_STATE_COOKIE, { path: "/" });
+    response.cookies.delete({ name: GITHUB_STATE_COOKIE, path: "/" });
 
     return response;
   } catch (error) {
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     const fallback = new URL("/", request.nextUrl.origin);
     fallback.searchParams.set("authError", message);
     const response = NextResponse.redirect(fallback);
-    response.cookies.delete(GITHUB_STATE_COOKIE, { path: "/" });
+    response.cookies.delete({ name: GITHUB_STATE_COOKIE, path: "/" });
     return response;
   }
 }
