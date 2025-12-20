@@ -125,7 +125,10 @@ export default function GeneratePage() {
     const fetchSession = async () => {
       setSessionError(null);
       try {
-        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        const response = await fetch("/api/auth/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!response.ok && response.status !== 401 && response.status !== 404) {
           throw new Error("Unable to load session.");
         }
@@ -221,6 +224,7 @@ export default function GeneratePage() {
             sourcesId: submittedReferenceIds,
           }),
           signal: controller.signal,
+          credentials: "include",
         });
 
         if (!response.ok) {
@@ -315,6 +319,7 @@ export default function GeneratePage() {
             "content-type": file.type || "application/octet-stream",
           },
           body: file,
+          credentials: "include",
         });
 
         if (!res.ok) {
@@ -871,6 +876,7 @@ async function openGenerationStream(payload: GenerationRequestPayload, signal: A
     signal,
     cache: "no-store",
     redirect: "follow",
+    credentials: "include",
   });
 
   if (!response.ok || !response.body) {
