@@ -10,6 +10,9 @@ declare namespace Cloudflare {
 		db: D1Database;
 		GEMINI_API_KEY: SecretsStoreSecret;
 		AI_GATEWAY_TOKEN: SecretsStoreSecret;
+        GITHUB_CLIENT_ID: SecretsStoreSecret;
+        GITHUB_CLIENT_SECRET: SecretsStoreSecret;
+        AUTH_JWT_SECRET: SecretsStoreSecret;
 		WORKER_SELF_REFERENCE: Service<typeof import("./.open-next/worker").default>;
 		AI: Ai;
 		IMAGES: ImagesBinding;

@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+
+import { AuthStatus } from "@/components/auth-status";
 
 type ArticleRecord = {
   id: string;
@@ -42,6 +45,7 @@ export default function Home() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [themeMode, setThemeMode] = useThemePreference();
+  const pathname = usePathname();
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
@@ -167,7 +171,10 @@ export default function Home() {
               </h1>
               <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">{heroSubtitle}</p>
             </div>
-            <ThemeToggle mode={themeMode} onChange={setThemeMode} />
+            <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <ThemeToggle mode={themeMode} onChange={setThemeMode} />
+              <AuthStatus redirectTo={pathname ?? "/"} />
+            </div>
           </div>
           <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
             <HeroStat label="Stories live" value={articles.length} />

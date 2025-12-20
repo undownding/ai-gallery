@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
+import { usePathname } from "next/navigation";
+
+import { AuthStatus } from "@/components/auth-status";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 
 const MAX_REFERENCES = 8;
@@ -54,6 +57,7 @@ export default function GeneratePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [previewUpload, setPreviewUpload] = useState<UploadRecord | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const pathname = usePathname();
 
   const controllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -208,6 +212,9 @@ export default function GeneratePage() {
   return (
     <div className="app-shell px-4 py-10 sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
+        <div className="flex justify-end">
+          <AuthStatus redirectTo={pathname ?? "/generate"} />
+        </div>
         <section className="relative overflow-hidden rounded-[38px] border border-[var(--border)] bg-[var(--surface)]/95 p-8 text-[var(--foreground)] shadow-soft">
           <div className="pointer-events-none absolute inset-0 opacity-70">
             <div className="absolute -left-16 top-6 h-40 w-40 rounded-full bg-[var(--accent-soft)] blur-2xl" />

@@ -1,6 +1,25 @@
-import {relations, sql} from "drizzle-orm";
-import {integer, sqliteTable, text} from "drizzle-orm/sqlite-core";
+import { relations, sql } from "drizzle-orm";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { v7 as uuidv7 } from "uuid";
+
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").notNull().$defaultFn(uuidv7).primaryKey(),
+    githubId: text("github_id").notNull(),
+    login: text("login").notNull(),
+    name: text("name"),
+    email: text("email"),
+    avatarUrl: text("avatar_url"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    lastLoginAt: text("last_login_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    githubIdIdx: uniqueIndex("users_github_id_unique").on(table.githubId),
+    emailIdx: uniqueIndex("users_email_unique").on(table.email),
+  }),
+);
 
 export const uploads = sqliteTable("uploads", {
   id: text("id").notNull().$defaultFn(uuidv7).primaryKey(),
@@ -30,6 +49,8 @@ export type Upload = typeof uploads.$inferSelect;
 export type NewUpload = typeof uploads.$inferInsert;
 export type Article = typeof articles.$inferSelect;
 export type NewArticle = typeof articles.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 
 export const uploadsRelations = relations(uploads, ({ one }) => ({
   article: one(articles, {
