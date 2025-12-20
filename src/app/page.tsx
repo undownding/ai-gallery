@@ -7,12 +7,20 @@ import { usePathname } from "next/navigation";
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference, type ThemeMode } from "@/components/theme-toggle";
 
+type ArticleAsset = {
+  id: string;
+  key: string;
+  eTag: string;
+  createdAt: string;
+};
+
 type ArticleRecord = {
   id: string;
-  title: string;
+  title: string | null;
   text: string;
-  media: string[];
-  previewImageId: string | null;
+  thumbnailImage: ArticleAsset | null;
+  media: ArticleAsset[];
+  sources: ArticleAsset[];
   createdAt: string;
   updatedAt: string;
 };
@@ -105,8 +113,7 @@ export default function Home() {
   }, [articles]);
 
   const totalShots = useMemo(
-    () =>
-      articles.reduce((sum, item) => sum + (item.media.length || (item.previewImageId ? 1 : 0)), 0),
+    () => articles.reduce((sum, item) => sum + (item.media.length || (item.thumbnailImage ? 1 : 0)), 0),
     [articles],
   );
 
@@ -253,14 +260,14 @@ function ArticleCard({
     <button type="button" className="article-card" onClick={() => onSelect(article.id)}>
       <div className="card-media">
         {coverSrc ? (
-          <img src={coverSrc} alt={article.title} loading="lazy" />
+          <img src={coverSrc} alt={article.title ?? "Article cover"} loading="lazy" />
         ) : (
           <div className="card-media__placeholder">Awaiting media</div>
         )}
         <span className="card-chip">{formatDate(article.createdAt)}</span>
       </div>
       <div className="flex flex-col gap-2 text-left">
-        <h3 className="text-base font-semibold text-[var(--foreground)]">{article.title}</h3>
+        <h3 className="text-base font-semibold text-[var(--foreground)]">{article.title ?? "Untitled story"}</h3>
         <p className="line-clamp-3 text-sm text-[var(--muted)]">{article.text}</p>
         <div className="flex items-center justify-between text-xs text-[var(--muted)]">
           <span>{formatShots(article)}</span>
@@ -282,6 +289,15 @@ function ArticleDetailPanel({
   error: string | null;
   onClose: () => void;
 }) {
+  const galleryAssets = article
+    ? article.media.length
+      ? article.media
+      : article.thumbnailImage
+        ? [article.thumbnailImage]
+        : []
+    : [];
+  const sourceAssets = article?.sources ?? [];
+
   return (
     <div className="detail-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div
@@ -292,7 +308,9 @@ function ArticleDetailPanel({
         <div className="detail-header">
           <div>
             <p className="detail-meta">{article ? formatDate(article.createdAt) : "Loading"}</p>
-            <h3>{article?.title ?? "Fetching article"}</h3>
+            <h3>
+              {article ? article.title ?? "Untitled story" : "Fetching article"}
+            </h3>
           </div>
           <button type="button" className="close-button" onClick={onClose}>
             Close
@@ -305,17 +323,30 @@ function ArticleDetailPanel({
         {article && !loading && !error && (
           <>
             <div className="detail-gallery">
-              {article.media.length ? (
-                article.media.map((asset) => {
-                  const src = resolveMediaAsset(asset);
+              {galleryAssets.length ? (
+                galleryAssets.map((asset) => {
+                  const src = resolveAssetUrl(asset);
                   return src ? (
-                    <img key={asset} src={src} alt={article.title} loading="lazy" />
+                    <img key={asset.id} src={src} alt={article.title ?? "Article media"} loading="lazy" />
                   ) : null;
                 })
               ) : (
                 <div className="detail-placeholder">No media provided</div>
               )}
             </div>
+            {sourceAssets.length > 0 && (
+              <div className="detail-sources">
+                <p className="detail-meta">Reference sources</p>
+                <div className="detail-gallery detail-gallery--sources">
+                  {sourceAssets.map((asset) => {
+                    const src = resolveAssetUrl(asset);
+                    return src ? (
+                      <img key={asset.id} src={src} alt={article.title ?? "Reference source"} loading="lazy" />
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
             <p className="detail-text">{article.text}</p>
           </>
         )}
@@ -334,16 +365,16 @@ function HeroStat({ label, value }: { label: string; value: string | number }) {
 }
 
 function resolveMediaCover(article: ArticleRecord) {
-  const candidate = article.previewImageId ?? article.media[0];
-  return candidate ? resolveMediaAsset(candidate) : null;
+  const candidate = article.thumbnailImage ?? article.media[0] ?? null;
+  return resolveAssetUrl(candidate);
 }
 
-function resolveMediaAsset(assetId: string | null) {
-  if (!assetId) return null;
-  if (assetId.startsWith("http")) return assetId;
+function resolveAssetUrl(asset: ArticleAsset | null | undefined) {
+  if (!asset?.key) return null;
+  if (asset.key.startsWith("http")) return asset.key;
   const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
-  if (publicBase) return `${publicBase.replace(/\/$/, "")}/${assetId}`;
-  return `/api/uploads/${encodeURIComponent(assetId)}`;
+  if (publicBase) return `${publicBase.replace(/\/$/, "")}/${asset.key}`;
+  return `/api/uploads/${encodeURIComponent(asset.key)}`;
 }
 
 function formatDate(value: string) {
@@ -357,6 +388,6 @@ function formatDate(value: string) {
 }
 
 function formatShots(article: ArticleRecord) {
-  const count = article.media.length || (article.previewImageId ? 1 : 0);
+  const count = article.media.length || (article.thumbnailImage ? 1 : 0);
   return `${count} shot${count === 1 ? "" : "s"}`;
 }

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { v7 as uuidv7 } from "uuid";
 
 export const users = sqliteTable(
@@ -25,7 +25,7 @@ export const uploads = sqliteTable("uploads", {
   id: text("id").notNull().$defaultFn(uuidv7).primaryKey(),
   key: text("key").notNull(),
   eTag: text("etag").notNull(),
-  articleId: text("article_id").references((): never => articles.id as never, {
+  userId: text("user_id").references(() => users.id, {
     onDelete: "set null",
     onUpdate: "cascade",
   }),
@@ -34,16 +34,62 @@ export const uploads = sqliteTable("uploads", {
 
 export const articles = sqliteTable("articles", {
   id: text("id").notNull().$defaultFn(uuidv7).primaryKey(),
-  title: text("title").notNull(),
+  title: text("title"),
   text: text("text").notNull(),
-  isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
-  previewImageId: text("preview_image_id").references(() => uploads.id, {
-    onDelete: "set null",
+  userId: text("user_id").notNull().references(() => users.id, {
+    onDelete: "cascade",
     onUpdate: "cascade",
   }),
+  isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const articleThumbnailImages = sqliteTable(
+  "article_thumbnail_images",
+  {
+    articleId: text("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => uploads.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.articleId] }),
+    uploadUnique: uniqueIndex("article_thumbnail_upload_unique").on(table.uploadId),
+  }),
+);
+
+export const articleMediaAssets = sqliteTable(
+  "article_media_assets",
+  {
+    articleId: text("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => uploads.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.articleId, table.uploadId] }),
+  ],
+);
+
+export const articleSourceAssets = sqliteTable(
+  "article_source_assets",
+  {
+    articleId: text("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => uploads.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.articleId, table.uploadId] }),
+  ]
+);
 
 export type Upload = typeof uploads.$inferSelect;
 export type NewUpload = typeof uploads.$inferInsert;
@@ -52,17 +98,58 @@ export type NewArticle = typeof articles.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
-export const uploadsRelations = relations(uploads, ({ one }) => ({
+export const uploadsRelations = relations(uploads, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [uploads.userId],
+    references: [users.id],
+  }),
+  thumbnailLinks: many(articleThumbnailImages),
+  mediaLinks: many(articleMediaAssets),
+  sourceLinks: many(articleSourceAssets),
+}));
+
+export const articleThumbnailImagesRelations = relations(articleThumbnailImages, ({ one }) => ({
   article: one(articles, {
-    fields: [uploads.articleId],
+    fields: [articleThumbnailImages.articleId],
     references: [articles.id],
+  }),
+  upload: one(uploads, {
+    fields: [articleThumbnailImages.uploadId],
+    references: [uploads.id],
+  }),
+}));
+
+export const articleMediaAssetsRelations = relations(articleMediaAssets, ({ one }) => ({
+  article: one(articles, {
+    fields: [articleMediaAssets.articleId],
+    references: [articles.id],
+  }),
+  upload: one(uploads, {
+    fields: [articleMediaAssets.uploadId],
+    references: [uploads.id],
+  }),
+}));
+
+export const articleSourceAssetsRelations = relations(articleSourceAssets, ({ one }) => ({
+  article: one(articles, {
+    fields: [articleSourceAssets.articleId],
+    references: [articles.id],
+  }),
+  upload: one(uploads, {
+    fields: [articleSourceAssets.uploadId],
+    references: [uploads.id],
   }),
 }));
 
 export const articlesRelations = relations(articles, ({ one, many }) => ({
-  previewImage: one(uploads, {
-    fields: [articles.previewImageId],
-    references: [uploads.id],
+  author: one(users, {
+    fields: [articles.userId],
+    references: [users.id],
   }),
-  media: many(uploads),
+  thumbnailImage: one(articleThumbnailImages, {
+    fields: [articles.id],
+    references: [articleThumbnailImages.articleId],
+  }),
+  media: many(articleMediaAssets),
+  sources: many(articleSourceAssets),
 }));

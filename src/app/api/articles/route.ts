@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
 import { articles } from "@/db/schema";
+import { serializeArticle, type ArticleResponsePayload } from "@/lib/articles";
 import {getCloudflareContext} from "@opennextjs/cloudflare"
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -24,12 +25,22 @@ export async function GET(request: NextRequest) {
         where: visibilityFilter,
         orderBy: [desc(articles.id)],
         limit: pageSize,
+        with: {
+            thumbnailImage: {
+                with: { upload: true },
+            },
+            media: {
+                with: { upload: true },
+            },
+        },
     })
+
+  const data: ArticleResponsePayload[] = rows.map((article) => serializeArticle(article));
 
   const nextAfterId = rows.length === pageSize ? rows[rows.length - 1].id : null;
 
   return NextResponse.json({
-    data: rows,
+    data,
     pageInfo: {
       nextAfterId,
       hasMore: nextAfterId !== null,

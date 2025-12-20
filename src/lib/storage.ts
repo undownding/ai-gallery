@@ -28,26 +28,38 @@ function buildObjectKey(mimeType: string) {
     return { id, key: `${dayjs().format("YYYY-MM/DD")}/${id}.${ext}` };
 }
 
-async function persistUpload(id: string, key: string, eTag?: string | null) {
+type UploadOptions = {
+    userId?: string;
+};
+
+async function persistUpload(id: string, key: string, eTag?: string | null, options?: UploadOptions) {
     return getDb(getCloudflareContext().env)
         .insert(uploads)
-        .values({ id, key, eTag: eTag ?? "" })
+        .values({ id, key, eTag: eTag ?? "", userId: options?.userId ?? null })
         .returning()
         .get();
 }
 
-export async function uploadBinaryImage(data: ArrayBuffer | Buffer, mimeType: string = DEFAULT_MIME_TYPE): Promise<Upload> {
+export async function uploadBinaryImage(
+    data: ArrayBuffer | Buffer,
+    mimeType: string = DEFAULT_MIME_TYPE,
+    options?: UploadOptions,
+): Promise<Upload> {
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
     const normalizedMime = mimeType || DEFAULT_MIME_TYPE;
     const { id, key } = buildObjectKey(normalizedMime);
 
     const obj = await getCloudflareContext().env.r2.put(key, buffer);
 
-    return persistUpload(id, key, obj?.etag);
+    return persistUpload(id, key, obj?.etag, options);
 }
 
-export async function uploadBase64Image(base64String: string, mimeType: string = DEFAULT_MIME_TYPE): Promise<Upload> {
-    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType);
+export async function uploadBase64Image(
+    base64String: string,
+    mimeType: string = DEFAULT_MIME_TYPE,
+    options?: UploadOptions,
+): Promise<Upload> {
+    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType, options);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
@@ -75,10 +87,17 @@ function mimeTypeFromKey(key: string): string {
     return INVERSE_EXTENSION_MAP[ext] ?? DEFAULT_MIME_TYPE;
 }
 
-export async function getUploadInlineData(uploadId: string): Promise<{ mimeType: string; data: string }> {
+export async function getUploadInlineData(
+    uploadId: string,
+    userId?: string,
+): Promise<{ mimeType: string; data: string }> {
     const upload = await getUploadById(uploadId);
     if (!upload) {
         throw new Error(`Upload ${uploadId} not found`);
+    }
+
+    if (userId && upload.userId !== userId) {
+        throw new Error("Upload not found");
     }
 
     const data = await getBase64Image(upload.key);

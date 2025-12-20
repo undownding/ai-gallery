@@ -12,15 +12,16 @@ type InlineContent =
 
 export async function generateContent(
     prompt: string,
-    aspectRatio?: AspectRatio,
-    imageSize?: ImageSize,
+    aspectRatio: AspectRatio | undefined,
+    imageSize: ImageSize | undefined,
     referenceUploadIds: string[] = [],
+    userId: string,
 ): Promise<GenerateContentResponse> {
     const apiKey = await getCloudflareContext().env.GEMINI_API_KEY.get()
     const gatewayToken = await getCloudflareContext().env.AI_GATEWAY_TOKEN.get()
     const baseUrl = await getCloudflareContext().env.AI.gateway('ai-gallery').getUrl('google-ai-studio')
     const uniqueIds = Array.from(new Set(referenceUploadIds)).slice(0, 8)
-    const inlineReferences = await Promise.all(uniqueIds.map((id) => getUploadInlineData(id)))
+    const inlineReferences = await Promise.all(uniqueIds.map((id) => getUploadInlineData(id, userId)))
     const contents: InlineContent[] = [
         { text: prompt },
         ...inlineReferences.map(({ mimeType, data }) => ({ inlineData: { mimeType, data } })),

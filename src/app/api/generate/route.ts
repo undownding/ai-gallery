@@ -1,9 +1,13 @@
 import dayjs from "dayjs";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { getDb } from "@/db/client";
+import { NewUpload, uploads } from "@/db/schema";
 import { generateContent, type AspectRatio, type ImageSize } from "@/lib/gemini";
+import { getSessionUser } from "@/lib/session";
 import { uploadBase64Image } from "@/lib/storage";
-import { NewUpload } from "@/db/schema";
 
 const encoder = new TextEncoder();
 const TOKEN_PARAM = "payload";
@@ -102,14 +106,14 @@ function decodeSignedPayload(token: string): SignedGeneratePayload | null {
     }
 }
 
-function createGenerationStream(params: SanitizedGeneratePayload) {
+function createGenerationStream(params: SanitizedGeneratePayload, userId: string) {
     const { prompt, aspectRatio, imageSize, referenceUploadIds } = params;
 
     return new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
                 let upload: NewUpload | null = null;
-                const response = await generateContent(prompt, aspectRatio, imageSize, referenceUploadIds);
+                const response = await generateContent(prompt, aspectRatio, imageSize, referenceUploadIds, userId);
                 const candidates = response.candidates ?? [];
 
                 for (const candidate of candidates) {
@@ -123,7 +127,9 @@ function createGenerationStream(params: SanitizedGeneratePayload) {
 
                         const inlineData = (part as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
                         if (inlineData?.data) {
-                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType);
+                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType, {
+                                userId,
+                            });
                             sendEvent(controller, "image", upload);
                         }
                     }
@@ -145,6 +151,12 @@ function createGenerationStream(params: SanitizedGeneratePayload) {
 }
 
 export async function POST(request: NextRequest) {
+    const env = getCloudflareContext().env;
+    const user = await getSessionUser(request, env);
+    if (!user) {
+        return NextResponse.json({ error: "Sign in to start a generation." }, { status: 401 });
+    }
+
     let payload: GenerateRequestBody | undefined;
 
     try {
@@ -166,6 +178,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+    const env = getCloudflareContext().env;
+    const user = await getSessionUser(request, env);
+    if (!user) {
+        return NextResponse.json({ error: "Sign in to stream a generation." }, { status: 401 });
+    }
+
     const token = request.nextUrl.searchParams.get(TOKEN_PARAM);
     if (!token) {
         return NextResponse.json({ error: "Missing payload token." }, { status: 400 });
@@ -192,6 +210,34 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: validation.message }, { status: validation.status ?? 400 });
     }
 
-    const stream = createGenerationStream(validation.value);
+    const ownershipCheck = await ensureReferenceOwnership(validation.value.referenceUploadIds, user.id, env);
+    if (ownershipCheck && ownershipCheck.error) {
+        return NextResponse.json({ error: ownershipCheck.error }, { status: ownershipCheck.status });
+    }
+
+    const stream = createGenerationStream(validation.value, user.id);
     return new Response(stream, { headers: SSE_HEADERS });
+}
+
+type Env = ReturnType<typeof getCloudflareContext>["env"];
+
+async function ensureReferenceOwnership(uploadIds: string[], userId: string, env: Env) {
+    if (!uploadIds.length) {
+        return null;
+    }
+
+    const db = getDb(env);
+    const owned = await db
+        .select({ id: uploads.id })
+        .from(uploads)
+        .where(and(inArray(uploads.id, uploadIds), eq(uploads.userId, userId)));
+
+    if (owned.length !== uploadIds.length) {
+        return {
+            error: "One or more reference uploads are unavailable.",
+            status: 403 as const,
+        };
+    }
+
+    return null;
 }
