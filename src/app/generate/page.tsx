@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MarkdownTypewriter } from "react-markdown-typewriter";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
+import { StableMarkdownTypewriter } from "@/components/stable-markdown-typewriter";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 
 const MAX_REFERENCES = 8;
+const nextTypewriterKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 const aspectRatioPresets: { value: AspectRatio; label: string; hint: string }[] = [
   { value: "1:1", label: "Square", hint: "Album covers, avatars" },
@@ -90,6 +91,7 @@ export default function GeneratePage() {
   const [themeMode, setThemeMode] = useThemePreference();
   const [streamedText, setStreamedText] = useState<string>("");
   const [generationDuration, setGenerationDuration] = useState(0);
+  const [typewriterSessionKey, setTypewriterSessionKey] = useState(() => nextTypewriterKey());
 
   const pathname = usePathname();
   const router = useRouter();
@@ -104,6 +106,11 @@ export default function GeneratePage() {
   const thinkScrollRef = useRef<HTMLDivElement | null>(null);
   const hasImageChunkRef = useRef(false);
 
+  const resetStreamedNarration = useCallback(() => {
+    setStreamedText("");
+    setTypewriterSessionKey(nextTypewriterKey());
+  }, []);
+
   const clearRedirectTimers = useCallback(() => {
     if (redirectTimerRef.current) {
       clearTimeout(redirectTimerRef.current);
@@ -114,8 +121,8 @@ export default function GeneratePage() {
       countdownIntervalRef.current = null;
     }
     setRedirectCountdown(null);
-    setStreamedText("");
-  }, []);
+    resetStreamedNarration();
+  }, [resetStreamedNarration]);
 
   useEffect(() => {
     return () => {
@@ -418,10 +425,10 @@ export default function GeneratePage() {
     setArticleCreationState({ status: "idle" });
     setSubmittedPrompt(null);
     setSubmittedReferenceIds([]);
-    setStreamedText("");
+    resetStreamedNarration();
     hasImageChunkRef.current = false;
     clearRedirectTimers();
-  }, [clearRedirectTimers]);
+  }, [clearRedirectTimers, resetStreamedNarration]);
 
   const handleEvent = useCallback((packet: ParsedEvent) => {
     console.log("handleEvent:", packet);
@@ -500,7 +507,7 @@ export default function GeneratePage() {
     setArticleCreationState({ status: "idle" });
     setSubmittedPrompt(trimmedPrompt);
     setSubmittedReferenceIds(referenceUploads.map((upload) => upload.id));
-    setStreamedText("");
+    resetStreamedNarration();
     hasImageChunkRef.current = false;
 
     const body: GenerationRequestPayload = {
@@ -523,7 +530,7 @@ export default function GeneratePage() {
     } finally {
       controllerRef.current = null;
     }
-  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, clearRedirectTimers]);
+  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, clearRedirectTimers, resetStreamedNarration]);
 
   const actionButtonLabel = status === "running" ? "STOP" : "Generte Shot";
   const actionButtonHandler = status === "running" ? stopGeneration : handleGenerate;
@@ -682,11 +689,12 @@ export default function GeneratePage() {
                     className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)]"
                   >
                     {streamedText ? (
-                      <MarkdownTypewriter
+                      <StableMarkdownTypewriter
+                        stableKey={typewriterSessionKey}
                         motionProps={{ className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]" }}
                       >
                         {streamedText}
-                      </MarkdownTypewriter>
+                      </StableMarkdownTypewriter>
                     ) : (
                       <p className="text-xs text-[var(--muted)]">
                         The narration feed prints here once the stream starts.
