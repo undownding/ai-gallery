@@ -58,6 +58,16 @@ type SessionResponse = {
   user: SessionUser | null;
 };
 
+type TextChunkPayload = {
+  text?: string;
+};
+
+type DoneEventPayload = {
+  text?: string | null;
+  upload?: UploadRecord | null;
+  response?: unknown;
+};
+
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">("");
@@ -77,6 +87,7 @@ export default function GeneratePage() {
   const [submittedReferenceIds, setSubmittedReferenceIds] = useState<string[]>([]);
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
+  const [streamedText, setStreamedText] = useState<string>("");
 
   const pathname = usePathname();
   const router = useRouter();
@@ -98,6 +109,7 @@ export default function GeneratePage() {
       countdownIntervalRef.current = null;
     }
     setRedirectCountdown(null);
+    setStreamedText("");
   }, []);
 
   useEffect(() => {
@@ -372,6 +384,7 @@ export default function GeneratePage() {
     setArticleCreationState({ status: "idle" });
     setSubmittedPrompt(null);
     setSubmittedReferenceIds([]);
+    setStreamedText("");
     clearRedirectTimers();
   }, [clearRedirectTimers]);
 
@@ -379,9 +392,29 @@ export default function GeneratePage() {
     console.log("handleEvent:", packet);
     if (!packet) return;
     switch (packet.event) {
-      case "image":
+      case "text": {
+        const textPayload = packet.data as TextChunkPayload;
+        if (typeof textPayload?.text === "string" && textPayload.text) {
+          setStreamedText((prev) => `${prev}${textPayload.text}`);
+        }
+        break;
+      }
+      // case "image": {
+      //   const uploadRecord = isUploadRecord(packet.data) ? (packet.data as UploadRecord) : null;
+      //   if (uploadRecord) {
+      //     setPreviewUpload(uploadRecord);
+      //     setGeneratedUploads((prev) => {
+      //       if (prev.some((item) => item.id === uploadRecord.id)) {
+      //         return prev;
+      //       }
+      //       return [...prev, uploadRecord];
+      //     });
+      //   }
+      //   break;
+      // }
       case "done": {
-        const uploadRecord = isUploadRecord(packet.data) ? (packet.data as UploadRecord) : null;
+        const payload = packet.data as DoneEventPayload;
+        const uploadRecord = isUploadRecord(payload?.upload) ? (payload?.upload as UploadRecord) : null;
         if (uploadRecord) {
           setPreviewUpload(uploadRecord);
           setGeneratedUploads((prev) => {
@@ -391,9 +424,10 @@ export default function GeneratePage() {
             return [...prev, uploadRecord];
           });
         }
-        if (packet.event === "done") {
-          setStatus("success");
+        if (typeof payload?.text === "string" && payload.text) {
+          setStreamedText(payload.text);
         }
+        setStatus("success");
         break;
       }
       case "error": {
@@ -429,6 +463,7 @@ export default function GeneratePage() {
     setArticleCreationState({ status: "idle" });
     setSubmittedPrompt(trimmedPrompt);
     setSubmittedReferenceIds(referenceUploads.map((upload) => upload.id));
+    setStreamedText("");
 
     const body: GenerationRequestPayload = {
       prompt: trimmedPrompt,
@@ -500,8 +535,13 @@ export default function GeneratePage() {
                     <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Live response</p>
                     <p className="text-base font-semibold">{statusLabel(status)}</p>
                     <p className="text-[var(--muted)]">
-                      The API streams structured SSE events: reference validation, image uploads, then completion meta. Keep this pane open to monitor each dispatch.
+                      The API streams structured SSE events: live text narration, image uploads, then a final summary snapshot.
                     </p>
+                    {streamedText && (
+                      <div className="max-h-60 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--background)]/40 p-4 text-sm text-[var(--foreground)]">
+                        {streamedText}
+                      </div>
+                    )}
                     <div className="flex gap-3">
                       <button
                         type="button"

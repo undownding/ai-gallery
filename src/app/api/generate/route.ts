@@ -2,10 +2,11 @@ import dayjs from "dayjs";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import type { GenerateContentResponse } from "@google/genai";
 
 import { getDb } from "@/db/client";
 import { NewUpload, uploads } from "@/db/schema";
-import { generateContent, type AspectRatio, type ImageSize } from "@/lib/gemini";
+import { generateContentStream, type AspectRatio, type ImageSize } from "@/lib/gemini";
 import { getSessionUser, type SessionUser } from "@/lib/session";
 import { uploadBase64Image } from "@/lib/storage";
 
@@ -29,6 +30,12 @@ type SanitizedGeneratePayload = {
 };
 
 type SignedGeneratePayload = SanitizedGeneratePayload & { ts: number };
+
+type GenerationSummary = {
+    text: string | null;
+    upload: NewUpload | null;
+    response?: GenerateContentResponse | null;
+};
 
 const SSE_HEADERS = {
     "Content-Type": "text/event-stream",
@@ -113,31 +120,44 @@ function createGenerationStream(params: SanitizedGeneratePayload, user: SessionU
         async start(controller) {
             try {
                 let upload: NewUpload | null = null;
-                const response = await generateContent(prompt, aspectRatio, imageSize, referenceUploadIds, user.id);
-                const candidates = response.candidates ?? [];
+                let lastChunk: GenerateContentResponse | null = null;
+                let aggregatedText = "";
+                const stream = await generateContentStream(prompt, aspectRatio, imageSize, referenceUploadIds, user.id);
 
-                for (const candidate of candidates) {
-                    const parts = candidate.content?.parts ?? [];
-                    for (const part of parts) {
-                        const text = (part as { text?: string }).text;
-                        if (text) {
-                            sendEvent(controller, "text", { text });
-                            continue;
-                        }
+                for await (const chunk of stream) {
+                    lastChunk = chunk;
+                    const candidates = chunk.candidates ?? [];
 
-                        const inlineData = (part as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
-                        if (inlineData?.data) {
-                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType, user);
-                            sendEvent(controller, "image", upload);
+                    for (const candidate of candidates) {
+                        const parts = candidate.content?.parts ?? [];
+                        for (const part of parts) {
+                            const text = (part as { text?: string }).text;
+                            if (text) {
+                                aggregatedText = aggregatedText ? `${aggregatedText}${text}` : text;
+                                sendEvent(controller, "text", { text });
+                                continue;
+                            }
+
+                            const inlineData = (part as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
+                            if (inlineData?.data) {
+                                upload = await uploadBase64Image(inlineData.data, inlineData.mimeType, user);
+                                sendEvent(controller, "image", upload);
+                            }
                         }
                     }
                 }
 
-                if (upload) {
-                    sendEvent(controller, "done", upload);
-                } else {
-                    sendEvent(controller, "done", response);
+                const summary: GenerationSummary = {
+                    text: aggregatedText || null,
+                    upload,
+                    response: upload ? null : lastChunk,
+                };
+
+                if (!summary.text && !summary.upload && !summary.response) {
+                    summary.text = "Generation completed with no output.";
                 }
+
+                sendEvent(controller, "done", summary);
             } catch (error) {
                 const message = error instanceof Error ? error.message : "Unexpected error";
                 sendEvent(controller, "error", { message });

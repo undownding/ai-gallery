@@ -1,4 +1,4 @@
-import {GenerateContentResponse, GoogleGenAI, ThinkingLevel} from "@google/genai";
+import {GenerateContentResponse, GoogleGenAI} from "@google/genai";
 import {getCloudflareContext} from "@opennextjs/cloudflare";
 import {getUploadInlineData} from "@/lib/storage";
 
@@ -10,13 +10,13 @@ type InlineContent =
     | { text: string }
     | { inlineData: { mimeType: string; data: string } };
 
-export async function generateContent(
+export async function generateContentStream(
     prompt: string,
     aspectRatio: AspectRatio | undefined,
     imageSize: ImageSize | undefined,
     referenceUploadIds: string[] = [],
     userId: string,
-): Promise<GenerateContentResponse> {
+): Promise<AsyncGenerator<GenerateContentResponse>> {
     const apiKey = await getCloudflareContext().env.GEMINI_API_KEY.get()
     const gatewayToken = await getCloudflareContext().env.AI_GATEWAY_TOKEN.get()
     const baseUrl = await getCloudflareContext().env.AI.gateway('ai-gallery').getUrl('google-ai-studio')
@@ -35,7 +35,7 @@ export async function generateContent(
             }
         }
     });
-    return ai.models.generateContent({
+    return ai.models.generateContentStream({
         model: 'gemini-3-pro-image-preview',
         contents,
         config: {
