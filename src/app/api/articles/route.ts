@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { articleMediaAssets, articleSourceAssets, articleThumbnailImages, articles, uploads } from "@/db/schema";
 import { serializeArticle, type ArticleResponsePayload } from "@/lib/articles";
 import { getSessionUser, type SessionUser } from "@/lib/session";
-import { getUploadInlineData, uploadBase64Image } from "@/lib/storage";
+import {getImage, getUploadById, getUploadInlineData, uploadBase64Image, uploadImage} from "@/lib/storage";
 import {getCloudflareContext} from "@opennextjs/cloudflare"
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -250,15 +250,19 @@ async function ensureUploadsOwnedByUser(
 
 async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
   const env = getCloudflareContext().env;
-  const source = await getUploadInlineData(uploadId, user.id);
+  const upload = await getUploadById(uploadId);
   const imageBinding = env?.IMAGES;
 
+  if (!upload) {
+    throw new Error("Media upload not found.");
+  }
+
   if (!imageBinding) {
-    return uploadBase64Image(source.data, source.mimeType, user);
+    return upload
   }
 
   try {
-    const originalBuffer = Buffer.from(source.data, "base64");
+    const originalBuffer = new Uint8Array(await getImage(upload.key))
     const resizeTransform: { width?: number; height?: number; fit: "scale-down" } = { fit: "scale-down" };
 
     try {
@@ -283,15 +287,14 @@ async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
       .transform(resizeTransform)
       .output({ format: "image/webp", quality: 80 });
 
-    const response = await transformation.response();
+    const response = transformation.response();
     const resizedBuffer = Buffer.from(await response.arrayBuffer());
-    const resizedBase64 = resizedBuffer.toString("base64");
     const mimeType = transformation.contentType() || "image/webp";
 
-    return uploadBase64Image(resizedBase64, mimeType, user);
+    return uploadImage(resizedBuffer, mimeType, user);
   } catch (error) {
     console.error("Unable to transform thumbnail", error);
-    return uploadBase64Image(source.data, source.mimeType, user);
+    return upload
   }
 }
 

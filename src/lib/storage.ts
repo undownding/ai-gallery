@@ -46,14 +46,18 @@ function bufferToReadableStream(buffer: Uint8Array): ReadableStream<Uint8Array> 
     });
 }
 
-async function convertBufferToWebp(buffer: Buffer, env: CloudflareEnv) {
+async function convertBufferToWebp(buffer: Buffer, env: CloudflareEnv, isBase64: boolean) {
     const imageBinding = env?.IMAGES;
     if (!imageBinding) {
         throw new Error("Cloudflare IMAGES binding is not configured; unable to convert uploads to WebP.");
     }
 
     try {
-        const transformer = imageBinding.input(bufferToReadableStream(buffer));
+        const inputOptions: ImageInputOptions = {}
+        if (isBase64) {
+            inputOptions.encoding = "base64";
+        }
+        const transformer = imageBinding.input(bufferToReadableStream(buffer), inputOptions);
         const transformation = await transformer.output({ format: "image/webp", quality: 85 });
         const response = await transformation.response();
         const converted = Buffer.from(await response.arrayBuffer());
@@ -73,14 +77,15 @@ async function persistUpload(env: CloudflareEnv, id: string, key: string, eTag: 
         .get();
 }
 
-export async function uploadBinaryImage(
+export async function uploadImage(
     data: ArrayBuffer | Buffer,
     _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
+    isBase64: boolean = false,
 ): Promise<Upload> {
     const env = getCloudflareContext().env;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    const { buffer: webpBuffer, mimeType } = await convertBufferToWebp(buffer, env);
+    const { buffer: webpBuffer, mimeType } = await convertBufferToWebp(buffer, env, isBase64);
     const { id, key } = buildObjectKey(owner);
 
     const obj = await env.r2.put(key, webpBuffer, {
@@ -95,16 +100,19 @@ export async function uploadBase64Image(
     _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
 ): Promise<Upload> {
-    return uploadBinaryImage(Buffer.from(base64String, "base64"), DEFAULT_MIME_TYPE, owner);
+    return uploadImage(Buffer.from(base64String), DEFAULT_MIME_TYPE, owner, true);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
+    return getImage(key).then((arrayBuffer) => Buffer.from(arrayBuffer).toString("base64"));
+}
+
+export async function getImage(key: string): Promise<ArrayBuffer> {
     const obj = await getCloudflareContext().env.r2.get(key);
     if (!obj) {
         throw new Error("Object not found");
     }
-    const arrayBuffer = await obj.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString("base64");
+    return await obj.arrayBuffer();
 }
 
 export async function getUploadById(id: string): Promise<Upload | null> {

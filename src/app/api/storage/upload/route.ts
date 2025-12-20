@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { uploadBinaryImage } from "@/lib/storage";
+import { uploadImage } from "@/lib/storage";
 import { getSessionUser } from "@/lib/session";
 
 export async function PUT(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest) {
     const mimeTypeHeader = request.headers.get("content-type");
 
     try {
-        const upload = await uploadBinaryImage(arrayBuffer, mimeTypeHeader ?? undefined, user);
+        const upload = await uploadImage(arrayBuffer, mimeTypeHeader ?? undefined, user);
         return NextResponse.json({ data: upload });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unexpected error";
