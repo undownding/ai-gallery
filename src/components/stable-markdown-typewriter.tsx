@@ -1,21 +1,42 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { isValidElement, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { HTMLMotionProps } from "motion/react";
 import type { MarkdownTypewriterProps } from "react-markdown-typewriter";
 
-type StableMarkdownTypewriterProps = MarkdownTypewriterProps & {
+type StableMarkdownTypewriterProps = Omit<MarkdownTypewriterProps, "children"> & {
+	children?: ReactNode;
 	stableKey?: string | number;
 };
 
-function extractText(node: StableMarkdownTypewriterProps["children"]): string {
-	if (node === null || node === undefined) return "";
-	if (typeof node === "string" || typeof node === "number") return String(node);
-	if (Array.isArray(node)) return node.map(extractText).join("");
-	if (typeof node === "object" && "props" in node) {
-		return extractText((node as { props?: { children?: unknown } }).props?.children);
+function extractText(node: ReactNode): string {
+	if (node === null || node === undefined || typeof node === "boolean") {
+		return "";
+	}
+	if (typeof node === "string" || typeof node === "number") {
+		return String(node);
+	}
+	if (Array.isArray(node)) {
+		return node.map((child) => extractText(child as ReactNode)).join("");
+	}
+	if (isValidElement<{ children?: ReactNode }>(node)) {
+		return extractText(node.props.children ?? "");
 	}
 	return "";
+}
+
+function resolveMotionStyle(style?: HTMLMotionProps<"span">["style"]): CSSProperties | undefined {
+	if (!style) return undefined;
+	return Object.entries(style).reduce<CSSProperties>((acc, [key, value]) => {
+		if (value === null || value === undefined) return acc;
+		const resolvedValue =
+			typeof value === "object" && "get" in (value as { get?: () => unknown }) && typeof (value as { get?: () => unknown }).get === "function"
+				? (value as { get: () => unknown }).get()
+				: value;
+		(acc as Record<string, unknown>)[key] = resolvedValue as CSSProperties[keyof CSSProperties];
+		return acc;
+	}, {});
 }
 
 function useTypingWindow(text: string, delay: number, sessionKey: string | number) {
@@ -71,7 +92,7 @@ export function StableMarkdownTypewriter({
 	const targetText = useMemo(() => extractText(children), [children]);
 	const renderedText = useTypingWindow(targetText, delay, stableKey);
 	const className = motionProps?.className;
-	const style = motionProps?.style;
+	const style = resolveMotionStyle(motionProps?.style);
 
 	return (
 		<div key={stableKey} className={className} style={style} data-typewriter-key={stableKey}>
