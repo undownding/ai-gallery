@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-import { AuthStatus } from "@/components/auth-status";
+import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { useArticleDetail } from "@/hooks/use-article-detail";
 import type { ArticleAssetPayload, ArticleResponsePayload } from "@/lib/articles";
@@ -13,6 +13,7 @@ import { resolveUploadUrl } from "@/lib/uploads-client";
 
 type ArticleAsset = ArticleAssetPayload;
 type UpdateMessage = { type: "success" | "error"; text: string } | null;
+type SessionResponse = { user: SessionUser | null };
 
 type PageParams = {
   params: Promise<{
@@ -25,6 +26,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<UpdateMessage>(null);
   const [themeMode, setThemeMode] = useThemePreference();
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -52,13 +54,61 @@ export default function ArticleDetailPage({ params }: PageParams) {
     [article],
   );
 
-  const viewerCanEdit = article?.viewerCanEdit ?? false;
   const redirectTarget = pathname ?? (articleId ? `/articles/${articleId}` : "/");
-  const promptHref = articleId ? `/articles/${articleId}/prompt` : null;
   const promptIsLong = (article?.text?.length ?? 0) > 320;
 
+  useEffect(() => {
+    let active = true;
+
+    const readSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!response.ok && response.status !== 401 && response.status !== 404) {
+          throw new Error("Unable to load session.");
+        }
+        const payload = (await response.json()) as SessionResponse;
+        if (active) {
+          setSessionUser(payload.user ?? null);
+        }
+      } catch {
+        if (active) {
+          setSessionUser(null);
+        }
+      }
+    };
+
+    readSession();
+
+    if (typeof window === "undefined") {
+      return () => {
+        active = false;
+      };
+    }
+
+    const handleSessionBroadcast = (event: Event) => {
+      const detail = (event as CustomEvent<SessionUser | null>).detail ?? null;
+      if (active) {
+        setSessionUser(detail);
+      }
+    };
+
+    window.addEventListener(AUTH_SESSION_EVENT, handleSessionBroadcast);
+
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_SESSION_EVENT, handleSessionBroadcast);
+    };
+  }, []);
+
+  const viewerIsAuthor = useMemo(() => {
+    if (!article?.author?.id || !sessionUser?.id) return false;
+    return article.author.id === sessionUser.id;
+  }, [article?.author?.id, sessionUser?.id]);
+
+  const canToggleVisibility = Boolean(article?.viewerCanEdit && viewerIsAuthor);
+
   const handleVisibilityToggle = useCallback(async () => {
-    if (!article || !article.viewerCanEdit) return;
+    if (!article || !canToggleVisibility) return;
     setUpdatingVisibility(true);
     setUpdateMessage(null);
     try {
@@ -85,12 +135,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
     } finally {
       setUpdatingVisibility(false);
     }
-  }, [article, setArticle]);
-
-  const handlePromptNavigate = useCallback(() => {
-    if (!promptHref) return;
-    router.push(promptHref);
-  }, [promptHref, router]);
+  }, [article, canToggleVisibility, setArticle]);
 
   const handleRetry = useCallback(() => {
     setUpdateMessage(null);
@@ -111,9 +156,9 @@ export default function ArticleDetailPage({ params }: PageParams) {
                 Back to feed
               </button>
               <p className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-4 py-1 text-[10px] uppercase tracking-[0.4em] text-[var(--muted)]">
-                灵感胶囊 · Xiaohongshu 布局
+                Inspiration capsule · Xiaohongshu layout
               </p>
-              <h1 className="text-4xl font-serif text-[var(--foreground)] sm:text-5xl">
+              <h1 className="text-[clamp(2.75rem,5vw,4.75rem)] font-serif leading-[1.08] text-[var(--foreground)]">
                 {article?.title ?? "Untitled story"}
               </h1>
               <p className="text-sm text-[var(--muted)]">{statusLabel}</p>
@@ -158,13 +203,15 @@ export default function ArticleDetailPage({ params }: PageParams) {
               </div>
 
               <div className="space-y-3">
-                <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">Prompt 摘要</p>
-                <h2 className="text-3xl font-semibold text-[var(--foreground)]">
-                  {article.title ?? "无标题灵感"}
+                <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">Prompt digest</p>
+                <h2 className="font-serif text-3xl leading-snug text-[var(--foreground)] sm:text-4xl">
+                  {article.title ?? "Untitled concept"}
                 </h2>
-                <div className={`relative text-base leading-relaxed text-[var(--foreground)] ${
-                  promptIsLong ? "max-h-72 overflow-hidden pr-4" : ""
-                }`}>
+                <div
+                  className={`relative text-base leading-relaxed text-[var(--foreground)] ${
+                    promptIsLong ? "max-h-72 overflow-hidden pr-4" : ""
+                  }`}
+                >
                   <p>{article.text}</p>
                   {promptIsLong && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/80 to-transparent" />
@@ -173,17 +220,9 @@ export default function ArticleDetailPage({ params }: PageParams) {
               </div>
 
               <div className="space-y-3">
-                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">深入阅读</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Story controls</p>
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handlePromptNavigate}
-                    disabled={!promptHref}
-                    className="rounded-full bg-[var(--foreground)] px-6 py-3 text-sm font-semibold text-[var(--background)] shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    查看详情
-                  </button>
-                  {viewerCanEdit ? (
+                  {canToggleVisibility ? (
                     <button
                       type="button"
                       onClick={handleVisibilityToggle}
@@ -191,16 +230,17 @@ export default function ArticleDetailPage({ params }: PageParams) {
                       className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {updatingVisibility
-                        ? "Updating…"
+                        ? "Updating visibility…"
                         : article.isPublic
                           ? "Hide from gallery"
                           : "Publish to gallery"}
                     </button>
                   ) : (
-                    <p className="text-xs text-[var(--muted)]">Sign in as the author to publish this story.</p>
+                    <p className="text-xs text-[var(--muted)]">
+                      Only the author can change the public status of this story.
+                    </p>
                   )}
                 </div>
-                <p className="text-xs text-[var(--muted)]">在新页面完整查看 prompt 文本与引用 source</p>
                 {updateMessage && (
                   <p
                     className={`text-sm ${
@@ -282,8 +322,8 @@ function MediaShowcase({ assets, title }: { assets: ArticleAsset[]; title: strin
     return (
       <div className={`${baseClasses} flex min-h-[420px] items-center justify-center text-center`}>
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-[var(--foreground)]">暂时没有配图</p>
-          <p className="text-xs text-[var(--muted)]">上传媒体后，这里会展示可横向滑动的灵感画面</p>
+          <p className="text-sm font-semibold text-[var(--foreground)]">No media added yet</p>
+          <p className="text-xs text-[var(--muted)]">Drop visuals here to open the horizontal showcase.</p>
         </div>
       </div>
     );
@@ -315,7 +355,7 @@ function MediaShowcase({ assets, title }: { assets: ArticleAsset[]; title: strin
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">左右滑动 · 媒体集</p>
+        <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Swipe to explore · media set</p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -388,7 +428,7 @@ function AuthorBadge({
       <div>
         <p className="text-sm uppercase tracking-[0.4em] text-[var(--muted)]">Author</p>
         <p className="text-lg font-semibold text-[var(--foreground)]">
-          {author?.name ?? author?.login ?? "匿名创作者"}
+          {author?.name ?? author?.login ?? "Anonymous creator"}
         </p>
         <p className="text-xs text-[var(--muted)]">@{author?.login ?? "unknown"} · {createdAt}</p>
       </div>

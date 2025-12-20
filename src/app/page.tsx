@@ -2,10 +2,10 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { AuthStatus } from "@/components/auth-status";
-import { ThemeToggle, useThemePreference, type ThemeMode } from "@/components/theme-toggle";
+import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 
 type ArticleAsset = {
   id: string;
@@ -34,10 +34,6 @@ type ArticlesResponse = {
   };
 };
 
-type ArticleDetailResponse = {
-  data: ArticleRecord;
-};
-
 const PAGE_SIZE = 12;
 
 export default function Home() {
@@ -48,13 +44,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeArticle, setActiveArticle] = useState<ArticleRecord | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
   const [themeMode, setThemeMode] = useThemePreference();
   const pathname = usePathname();
+  const router = useRouter();
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
@@ -120,50 +112,10 @@ export default function Home() {
 
   const handleCardSelect = useCallback(
     (articleId: string) => {
-      setSelectedId(articleId);
-      setDetailError(null);
-      const cached = articles.find((item) => item.id === articleId) ?? null;
-      setActiveArticle(cached);
+      router.push(`/articles/${articleId}`);
     },
-    [articles],
+    [router],
   );
-
-  const closeDetail = useCallback(() => {
-    setSelectedId(null);
-    setActiveArticle(null);
-    setDetailError(null);
-    setDetailLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    let cancelled = false;
-    setDetailLoading(true);
-    setDetailError(null);
-
-    (async () => {
-      try {
-        const res = await fetch(`/api/articles/${selectedId}`);
-        if (!res.ok) throw new Error("Unable to fetch article details.");
-        const payload: ArticleDetailResponse = await res.json();
-        if (!cancelled) {
-          setActiveArticle(payload.data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setDetailError(err instanceof Error ? err.message : "Something went wrong.");
-        }
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
 
   return (
     <div className="app-shell px-4 pb-16 pt-10 sm:px-6 lg:px-10">
@@ -236,14 +188,6 @@ export default function Home() {
         </section>
       </div>
 
-      {selectedId && (
-        <ArticleDetailPanel
-          article={activeArticle}
-          loading={detailLoading}
-          error={detailError}
-          onClose={closeDetail}
-        />
-      )}
     </div>
   );
 }
@@ -272,87 +216,10 @@ function ArticleCard({
         <p className="line-clamp-3 text-sm text-[var(--muted)]">{article.text}</p>
         <div className="flex items-center justify-between text-xs text-[var(--muted)]">
           <span>{formatShots(article)}</span>
-          <span>View detail</span>
+          <span>Open story</span>
         </div>
       </div>
     </button>
-  );
-}
-
-function ArticleDetailPanel({
-  article,
-  loading,
-  error,
-  onClose,
-}: {
-  article: ArticleRecord | null;
-  loading: boolean;
-  error: string | null;
-  onClose: () => void;
-}) {
-  const galleryAssets = article
-    ? article.media.length
-      ? article.media
-      : article.thumbnailImage
-        ? [article.thumbnailImage]
-        : []
-    : [];
-  const sourceAssets = article?.sources ?? [];
-
-  return (
-    <div className="detail-overlay" role="dialog" aria-modal="true" onClick={onClose}>
-      <div
-        className="detail-panel shadow-soft"
-        onClick={(event) => event.stopPropagation()}
-        role="document"
-      >
-        <div className="detail-header">
-          <div>
-            <p className="detail-meta">{article ? formatDate(article.createdAt) : "Loading"}</p>
-            <h3>
-              {article ? article.title ?? "Untitled story" : "Fetching article"}
-            </h3>
-          </div>
-          <button type="button" className="close-button" onClick={onClose}>
-            Close
-          </button>
-        </div>
-
-        {loading && <p className="detail-state">Loading details...</p>}
-        {error && <p className="detail-state detail-state--error">{error}</p>}
-
-        {article && !loading && !error && (
-          <>
-            <div className="detail-gallery">
-              {galleryAssets.length ? (
-                galleryAssets.map((asset) => {
-                  const src = resolveAssetUrl(asset);
-                  return src ? (
-                    <img key={asset.id} src={src} alt={article.title ?? "Article media"} loading="lazy" />
-                  ) : null;
-                })
-              ) : (
-                <div className="detail-placeholder">No media provided</div>
-              )}
-            </div>
-            {sourceAssets.length > 0 && (
-              <div className="detail-sources">
-                <p className="detail-meta">Reference sources</p>
-                <div className="detail-gallery detail-gallery--sources">
-                  {sourceAssets.map((asset) => {
-                    const src = resolveAssetUrl(asset);
-                    return src ? (
-                      <img key={asset.id} src={src} alt={article.title ?? "Reference source"} loading="lazy" />
-                    ) : null;
-                  })}
-                </div>
-              </div>
-            )}
-            <p className="detail-text">{article.text}</p>
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 
