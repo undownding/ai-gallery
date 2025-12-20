@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 import { AuthStatus } from "@/components/auth-status";
+import { ThemeToggle, useThemePreference, type ThemeMode } from "@/components/theme-toggle";
 
 type ArticleRecord = {
   id: string;
@@ -27,8 +28,6 @@ type ArticlesResponse = {
 type ArticleDetailResponse = {
   data: ArticleRecord;
 };
-
-type ThemeMode = "system" | "light" | "dark";
 
 const PAGE_SIZE = 12;
 
@@ -331,46 +330,6 @@ function HeroStat({ label, value }: { label: string; value: string | number }) {
       <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
       <p className="text-2xl font-semibold">{value}</p>
     </div>
-  );
-}
-
-function useThemePreference() {
-  const [mode, setMode] = useState<ThemeMode>("system");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("ai-gallery-theme");
-    if (stored === "light" || stored === "dark") {
-      setMode(stored);
-      document.documentElement.dataset.theme = stored;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const root = document.documentElement;
-    if (mode === "system") {
-      root.removeAttribute("data-theme");
-      window.localStorage.removeItem("ai-gallery-theme");
-      return;
-    }
-    root.dataset.theme = mode;
-    window.localStorage.setItem("ai-gallery-theme", mode);
-  }, [mode]);
-
-  return [mode, setMode] as const;
-}
-
-function ThemeToggle({ mode, onChange }: { mode: ThemeMode; onChange: (next: ThemeMode) => void }) {
-  const cycleOrder: ThemeMode[] = ["system", "light", "dark"];
-  const next = cycleOrder[(cycleOrder.indexOf(mode) + 1) % cycleOrder.length];
-  const label = mode === "system" ? "Auto" : mode === "light" ? "Light" : "Dark";
-
-  return (
-    <button type="button" className="theme-button" data-mode={mode} onClick={() => onChange(next)}>
-      <span className="theme-button__indicator" aria-hidden />
-      <span>{label} theme</span>
-    </button>
   );
 }
 

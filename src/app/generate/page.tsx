@@ -5,6 +5,7 @@ import type { ChangeEvent, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
+import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 
 const MAX_REFERENCES = 8;
@@ -64,21 +65,19 @@ export default function GeneratePage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showRenderOptions, setShowRenderOptions] = useState(false);
-  const [runDurationMs, setRunDurationMs] = useState<number | null>(null);
+  const [themeMode, setThemeMode] = useThemePreference();
 
   const pathname = usePathname();
 
   const controllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRegistry = useRef(new Set<string>());
-  const generationStartRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const registry = previewUrlRegistry.current;
     return () => {
       controllerRef.current?.abort();
-      registry.forEach((url) => URL.revokeObjectURL(url));
-      registry.clear();
+      previewUrlRegistry.current.forEach((url) => URL.revokeObjectURL(url));
+      previewUrlRegistry.current.clear();
     };
   }, []);
 
@@ -159,8 +158,6 @@ export default function GeneratePage() {
     return `${sizeLabel} · ${ratioLabel}`;
   }, [aspectRatio, imageSize]);
 
-  const runDurationLabel = runDurationMs != null ? formatDuration(runDurationMs) : "—";
-
   const handleFileSelection = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -221,15 +218,6 @@ export default function GeneratePage() {
     controllerRef.current?.abort();
     controllerRef.current = null;
     setStatus("idle");
-    generationStartRef.current = null;
-    setRunDurationMs(null);
-  }, []);
-
-  const finalizeRunDuration = useCallback(() => {
-    if (generationStartRef.current != null) {
-      setRunDurationMs(Date.now() - generationStartRef.current);
-      generationStartRef.current = null;
-    }
   }, []);
 
   const handleEvent = useCallback((packet: ParsedEvent) => {
@@ -243,7 +231,6 @@ export default function GeneratePage() {
         }
         if (packet.event === "done") {
           setStatus("success");
-          finalizeRunDuration();
         }
         break;
       }
@@ -253,13 +240,12 @@ export default function GeneratePage() {
           : "Generation failed.";
         setErrorMessage(message);
         setStatus("error");
-        finalizeRunDuration();
         break;
       }
       default:
         break;
     }
-  }, [finalizeRunDuration]);
+  }, []);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -272,8 +258,6 @@ export default function GeneratePage() {
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    generationStartRef.current = Date.now();
-    setRunDurationMs(null);
     setStatus("running");
     setErrorMessage(null);
     setPreviewUpload(null);
@@ -294,76 +278,81 @@ export default function GeneratePage() {
       }
       setStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "Something went wrong.");
-      finalizeRunDuration();
     } finally {
       controllerRef.current = null;
     }
-  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, finalizeRunDuration]);
+  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser]);
 
   return (
     <>
       <div className="app-shell px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-          <div className="flex justify-end">
-            <AuthStatus redirectTo={pathname ?? "/generate"} />
-          </div>
-          <section className="relative overflow-hidden rounded-[38px] border border-[var(--border)] bg-[var(--surface)]/95 p-8 text-[var(--foreground)] shadow-soft">
+          <section className="relative overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/95 px-6 py-8 text-[var(--foreground)] shadow-soft sm:px-8 sm:py-10">
             <div className="pointer-events-none absolute inset-0 opacity-70">
               <div className="absolute -left-16 top-6 h-40 w-40 rounded-full bg-[var(--accent-soft)] blur-2xl" />
               <div className="absolute inset-x-10 bottom-0 h-40 rounded-[60px] bg-gradient-to-r from-[var(--accent-soft)] via-transparent to-[var(--accent-soft)] blur-3xl" />
             </div>
-            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
-                <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
-                <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-                  Feed the Gemini image preview model with a cinematic brief, weave in references, and let the stream narrate each render hand-off.
-                </p>
-                <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
-                  <StatusBadge status={status} />
-                  <span className="inline-flex items-center justify-center rounded-full border border-[var(--border)] px-4 py-1 text-center">
-                    {referenceUploads.length}/{MAX_REFERENCES} references linked
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowRenderOptions(true)}
-                    className="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-5 py-2 text-left text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  >
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">Render options</span>
-                      <span className="text-sm font-semibold">{renderOptionsLabel}</span>
+            <div className="pointer-events-auto absolute right-3 top-3 z-20 flex flex-col gap-2 sm:right-6 sm:top-6 sm:flex-row sm:gap-3">
+              <ThemeToggle mode={themeMode} onChange={setThemeMode} />
+              <AuthStatus redirectTo={pathname ?? "/generate"} />
+            </div>
+            <div className="relative z-10 flex flex-col gap-8 pt-16 sm:pt-20">
+              <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[1.3fr_0.7fr] lg:items-start">
+                <div className="space-y-3 max-w-2xl lg:max-w-none">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
+                    <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
+                      Feed the Gemini image preview model with a cinematic brief, weave in references, and let the stream narrate each render hand-off.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2 text-xs text-[var(--muted)]">
+                    <div>
+                      <StatusBadge status={status} />
                     </div>
-                  </button>
-                </div>
-
-                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/80 p-6 text-sm text-[var(--muted)] shadow-soft">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Creative direction tip</p>
-                  <p className="mt-2">
-                    Combine cinematic verbs with lighting and lens jargon for the most evocative renders. Adjust ratios and resolution from the pill above whenever you need tighter framing.
-                  </p>
-                </div>
-              </div>
-              <div className="flex w-full flex-col gap-3 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)]/60 to-[var(--background)]/40 p-6 text-sm lg:max-w-sm lg:self-center">
-                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Live response</p>
-                <p className="text-base font-semibold">{statusLabel(status)}</p>
-                <p className="text-[var(--muted)]">The API streams structured SSE events: reference validation, image uploads, then completion meta.</p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGenerate}
-                    disabled={!canSubmit}
-                    className="flex-1 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {status === "running" ? "Generating" : "Generate shot"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopGeneration}
-                    disabled={status !== "running"}
-                    className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Stop
-                  </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex h-10 items-center rounded-full border border-[var(--border)] px-4 text-sm font-semibold text-[var(--foreground)]">
+                        {referenceUploads.length}/{MAX_REFERENCES} references linked
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowRenderOptions(true)}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 text-left text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">Render options</span>
+                          <span className="text-sm font-semibold">{renderOptionsLabel}</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex w-full flex-col gap-3 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)]/60 to-[var(--background)]/40 p-6 text-sm">
+                    <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Live response</p>
+                    <p className="text-base font-semibold">{statusLabel(status)}</p>
+                    <p className="text-[var(--muted)]">
+                      The API streams structured SSE events: reference validation, image uploads, then completion meta. Keep this pane open to monitor each dispatch.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handleGenerate}
+                        disabled={!canSubmit}
+                        className="flex-1 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {status === "running" ? "Generating" : "Generate shot"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopGeneration}
+                        disabled={status !== "running"}
+                        className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -421,9 +410,8 @@ export default function GeneratePage() {
                       </label>
                     </div>
 
-                    <div className={`mt-4 ${referenceUploads.length ? "max-h-[26rem] overflow-y-auto pr-1" : ""}`}>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        {referenceUploads.map((asset) => {
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      {referenceUploads.map((asset) => {
                         const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
                         return (
                           <div key={asset.id} className="relative overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-soft">
@@ -444,18 +432,23 @@ export default function GeneratePage() {
                             </button>
                           </div>
                         );
-                        })}
+                      })}
 
-                        {!referenceUploads.length && (
-                          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-sm text-[var(--muted)]">
-                            Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
-                          </div>
-                        )}
-                      </div>
+                      {!referenceUploads.length && (
+                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-sm text-[var(--muted)]">
+                          Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </FieldGroup>
 
+                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/70 p-6 text-sm text-[var(--muted)] shadow-soft">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Creative direction tip</p>
+                  <p className="mt-2">
+                    Combine cinematic verbs with lighting and lens jargon for the most evocative renders. Adjust ratios and resolution from the pill above whenever you need tighter framing.
+                  </p>
+                </div>
               </form>
 
               <aside className="flex flex-col gap-6">
@@ -490,10 +483,6 @@ export default function GeneratePage() {
                     <div className="flex items-center justify-between border-b border-dashed border-[var(--border)] pb-3">
                       <span className="text-[var(--muted)]">Status</span>
                       <span className="font-semibold text-[var(--foreground)]">{statusLabel(status)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[var(--muted)]">Duration</span>
-                      <span className="font-semibold">{runDurationLabel}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">Resolution</span>
@@ -621,7 +610,7 @@ function StatusBadge({ status }: { status: StreamStatus }) {
   const label = statusLabel(status);
 
   return (
-    <span className={`inline-flex items-center justify-center rounded-full border px-4 py-1 text-center text-xs font-semibold ${palette[status]}`}>
+    <span className={`inline-flex h-11 items-center rounded-full border px-5 text-sm font-semibold ${palette[status]}`}>
       {label}
     </span>
   );
@@ -743,22 +732,6 @@ function resolveUploadUrl(key: string | null | undefined) {
   const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   if (!publicBase) return null;
   return `${publicBase.replace(/\/$/, "")}/${key}`;
-}
-
-function formatDuration(durationMs: number) {
-  if (durationMs < 1000) {
-    return `${Math.round(durationMs)}ms`;
-  }
-
-  const seconds = durationMs / 1000;
-  if (seconds < 60) {
-    const formatted = seconds < 10 ? seconds.toFixed(1) : Math.round(seconds).toString();
-    return `${formatted}s`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-  return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
 }
 
 async function safeReadError(response: Response): Promise<string | null> {
