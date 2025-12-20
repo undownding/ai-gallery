@@ -14,6 +14,7 @@ export const users = sqliteTable(
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     lastLoginAt: text("last_login_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    isCreator: integer("is_creator", { mode: "boolean" }).notNull().default(false),
   },
   (table) => ({
     githubIdIdx: uniqueIndex("users_github_id_unique").on(table.githubId),

@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-import { AuthStatus } from "@/components/auth-status";
+import { AuthStatus, AUTH_SESSION_EVENT } from "@/components/auth-status";
+import type { SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 
 type ArticleAsset = {
@@ -43,6 +44,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
 
   const [themeMode, setThemeMode] = useThemePreference();
   const pathname = usePathname();
@@ -85,6 +87,40 @@ export default function Home() {
   }, [fetchPage]);
 
   useEffect(() => {
+    let active = true;
+
+    const handleSessionEvent = (event: Event) => {
+      if (!active) return;
+      const detail = (event as CustomEvent<SessionUser | null>).detail ?? null;
+      setSessionUser(detail);
+    };
+
+    window.addEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!active) return;
+        if (!res.ok && res.status !== 401 && res.status !== 404) {
+          throw new Error("Session request failed");
+        }
+        const payload = (await res.json()) as { user: SessionUser | null };
+        if (!active) return;
+        setSessionUser(payload.user);
+      } catch {
+        if (active) {
+          setSessionUser(null);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasMore) return;
     const node = sentinelRef.current;
     if (!node) return;
@@ -118,77 +154,88 @@ export default function Home() {
   );
 
   return (
-    <div className="app-shell px-4 pb-16 pt-10 sm:px-6 lg:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft backdrop-blur">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                AI Gallery
-              </p>
-              <h1 className="text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
-                City stories in your pocket
-              </h1>
-              <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">{heroSubtitle}</p>
+    <>
+      <div className="app-shell px-4 pb-16 pt-10 sm:px-6 lg:px-10">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+          <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft backdrop-blur">
+            <div className="flex flex-wrap items-start justify-between gap-6">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                  AI Gallery
+                </p>
+                <h1 className="text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
+                  City stories in your pocket
+                </h1>
+                <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">{heroSubtitle}</p>
+              </div>
+              <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <ThemeToggle mode={themeMode} onChange={setThemeMode} />
+                <AuthStatus redirectTo={pathname ?? "/"} />
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <ThemeToggle mode={themeMode} onChange={setThemeMode} />
-              <AuthStatus redirectTo={pathname ?? "/"} />
+            <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
+              <HeroStat label="Stories live" value={articles.length} />
+              <HeroStat label="Shots archived" value={totalShots} />
+              <HeroStat label="Status" value={hasMore ? "Streaming" : "Up to date"} />
             </div>
-          </div>
-          <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
-            <HeroStat label="Stories live" value={articles.length} />
-            <HeroStat label="Shots archived" value={totalShots} />
-            <HeroStat label="Status" value={hasMore ? "Streaming" : "Up to date"} />
-          </div>
-        </header>
+          </header>
 
-        <section className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--muted)]">
-            <span>
-              Showing {articles.length} article{articles.length === 1 ? "" : "s"} · {totalShots}{" "}
-              media
-            </span>
-            <button
-              type="button"
-              onClick={() => fetchPage(null)}
-              className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              Refresh feed
-            </button>
-          </div>
-
-          <div className="feed-grid">
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} onSelect={handleCardSelect} />
-            ))}
-          </div>
-
-          {error && <div className="alert-card">{error}</div>}
-
-          {!articles.length && initialized && !loading && !error && (
-            <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-8 text-center text-sm text-[var(--muted)]">
-              No public articles yet. Be the first to drop a story.
-            </div>
-          )}
-
-          <div className="flex flex-col items-center gap-3 text-xs text-[var(--muted)]">
-            {loading && <span>Loading more stories...</span>}
-            {hasMore && !loading && (
+          <section className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--muted)]">
+              <span>
+                Showing {articles.length} article{articles.length === 1 ? "" : "s"} · {totalShots}{" "}
+                media
+              </span>
               <button
                 type="button"
-                onClick={requestMore}
-                className="rounded-full border border-[var(--border)] px-6 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                onClick={() => fetchPage(null)}
+                className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
-                Load more
+                Refresh feed
               </button>
-            )}
-            <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
-          </div>
-        </section>
-      </div>
+            </div>
 
-    </div>
+            <div className="feed-grid">
+              {articles.map((article) => (
+                <ArticleCard key={article.id} article={article} onSelect={handleCardSelect} />
+              ))}
+            </div>
+
+            {error && <div className="alert-card">{error}</div>}
+
+            {!articles.length && initialized && !loading && !error && (
+              <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-8 text-center text-sm text-[var(--muted)]">
+                No public articles yet. Be the first to drop a story.
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-3 text-xs text-[var(--muted)]">
+              {loading && <span>Loading more stories...</span>}
+              {hasMore && !loading && (
+                <button
+                  type="button"
+                  onClick={requestMore}
+                  className="rounded-full border border-[var(--border)] px-6 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  Load more
+                </button>
+              )}
+              <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
+            </div>
+          </section>
+        </div>
+      </div>
+      {sessionUser?.isCreator && (
+        <a
+          href="/generate"
+          aria-label="Open the generator"
+          title="Create a new drop"
+          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-lg font-semibold text-[var(--surface)] shadow-[0_12px_30px_rgba(0,0,0,0.25)] transition hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        >
+          ✦
+        </a>
+      )}
+    </>
   );
 }
 

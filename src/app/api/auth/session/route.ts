@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    const { id, login, name, email, avatarUrl } = user;
-    return NextResponse.json({ user: { id, login, name, email, avatarUrl } });
+    const { id, login, name, email, avatarUrl, isCreator } = user;
+    return NextResponse.json({ user: { id, login, name, email, avatarUrl, isCreator } });
   } catch {
     const response = NextResponse.json({ user: null }, { status: 401 });
     response.cookies.delete({name: ACCESS_TOKEN_COOKIE,  path: "/" });

@@ -8,6 +8,7 @@ export type SessionUser = {
   name?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
+  isCreator?: boolean;
 };
 
 type SessionResponse = {

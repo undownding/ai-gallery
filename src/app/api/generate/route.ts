@@ -154,6 +154,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
         return NextResponse.json({ error: "Sign in to start a generation." }, { status: 401 });
     }
+    if (!user.isCreator) {
+        return NextResponse.json({ error: "Creator access required." }, { status: 403 });
+    }
 
     let payload: GenerateRequestBody | undefined;
 
@@ -180,6 +183,9 @@ export async function GET(request: NextRequest) {
     const user = await getSessionUser(request, env);
     if (!user) {
         return NextResponse.json({ error: "Sign in to stream a generation." }, { status: 401 });
+    }
+    if (!user.isCreator) {
+        return NextResponse.json({ error: "Creator access required." }, { status: 403 });
     }
 
     const token = request.nextUrl.searchParams.get(TOKEN_PARAM);
