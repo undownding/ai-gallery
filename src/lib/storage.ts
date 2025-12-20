@@ -5,7 +5,8 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDb } from "@/db/client";
 import { eq } from "drizzle-orm";
 
-const DEFAULT_MIME_TYPE = "image/png";
+const DEFAULT_MIME_TYPE = "image/webp";
+const TARGET_EXTENSION = "webp";
 const EXTENSION_MAP: Record<string, string> = {
     "image/png": "png",
     "image/jpeg": "jpg",
@@ -22,20 +23,50 @@ const INVERSE_EXTENSION_MAP: Record<string, string> = Object.entries(EXTENSION_M
     {} as Record<string, string>,
 );
 
+type CloudflareEnv = ReturnType<typeof getCloudflareContext>["env"];
+
 type UploadOwner = {
     id: string;
     login: string;
 };
 
-function buildObjectKey(mimeType: string, owner: UploadOwner) {
-    const ext = EXTENSION_MAP[mimeType] ?? "bin";
+function buildObjectKey(owner: UploadOwner) {
+    const ext = TARGET_EXTENSION;
     const id = uuidv7();
     const prefix = dayjs().format("YYYY-MM");
     return { id, key: `${prefix}/${owner.login}_${owner.id}/${id}.${ext}` };
 }
 
-async function persistUpload(id: string, key: string, eTag: string | null | undefined, owner: UploadOwner) {
-    return getDb(getCloudflareContext().env)
+function bufferToReadableStream(buffer: Uint8Array): ReadableStream<Uint8Array> {
+    return new ReadableStream({
+        start(controller) {
+            controller.enqueue(buffer);
+            controller.close();
+        },
+    });
+}
+
+async function convertBufferToWebp(buffer: Buffer, env: CloudflareEnv) {
+    const imageBinding = env?.IMAGES;
+    if (!imageBinding) {
+        throw new Error("Cloudflare IMAGES binding is not configured; unable to convert uploads to WebP.");
+    }
+
+    try {
+        const transformer = imageBinding.input(bufferToReadableStream(buffer));
+        const transformation = await transformer.output({ format: "image/webp", quality: 85 });
+        const response = await transformation.response();
+        const converted = Buffer.from(await response.arrayBuffer());
+        const mimeType = transformation.contentType() || DEFAULT_MIME_TYPE;
+        return { buffer: converted, mimeType };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unexpected error";
+        throw new Error(`Unable to convert upload to WebP: ${message}`);
+    }
+}
+
+async function persistUpload(env: CloudflareEnv, id: string, key: string, eTag: string | null | undefined, owner: UploadOwner) {
+    return getDb(env)
         .insert(uploads)
         .values({ id, key, eTag: eTag ?? "", userId: owner.id })
         .returning()
@@ -44,24 +75,27 @@ async function persistUpload(id: string, key: string, eTag: string | null | unde
 
 export async function uploadBinaryImage(
     data: ArrayBuffer | Buffer,
-    mimeType: string = DEFAULT_MIME_TYPE,
+    _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
 ): Promise<Upload> {
+    const env = getCloudflareContext().env;
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    const normalizedMime = mimeType || DEFAULT_MIME_TYPE;
-    const { id, key } = buildObjectKey(normalizedMime, owner);
+    const { buffer: webpBuffer, mimeType } = await convertBufferToWebp(buffer, env);
+    const { id, key } = buildObjectKey(owner);
 
-    const obj = await getCloudflareContext().env.r2.put(key, buffer);
+    const obj = await env.r2.put(key, webpBuffer, {
+        httpMetadata: { contentType: mimeType },
+    });
 
-    return persistUpload(id, key, obj?.etag, owner);
+    return persistUpload(env, id, key, obj?.etag, owner);
 }
 
 export async function uploadBase64Image(
     base64String: string,
-    mimeType: string = DEFAULT_MIME_TYPE,
+    _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
 ): Promise<Upload> {
-    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType, owner);
+    return uploadBinaryImage(Buffer.from(base64String, "base64"), DEFAULT_MIME_TYPE, owner);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
@@ -70,7 +104,7 @@ export async function getBase64Image(key: string): Promise<string> {
         throw new Error("Object not found");
     }
     const arrayBuffer = await obj.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString('base64');
+    return Buffer.from(arrayBuffer).toString("base64");
 }
 
 export async function getUploadById(id: string): Promise<Upload | null> {
@@ -82,7 +116,7 @@ export async function getUploadById(id: string): Promise<Upload | null> {
 }
 
 function mimeTypeFromKey(key: string): string {
-    const ext = key.split('.').pop()?.toLowerCase();
+    const ext = key.split(".").pop()?.toLowerCase();
     if (!ext) {
         return DEFAULT_MIME_TYPE;
     }
