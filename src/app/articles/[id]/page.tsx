@@ -34,22 +34,44 @@ type ArticleDetailResponse = {
 type UpdateMessage = { type: "success" | "error"; text: string } | null;
 
 type PageParams = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default function ArticleDetailPage({ params }: PageParams) {
-  const articleId = params.id;
   const [article, setArticle] = useState<ArticleRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<UpdateMessage>(null);
+  const [articleId, setArticleId] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
 
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const resolved = await params;
+        if (isMounted) {
+          setArticleId(resolved.id);
+        }
+      } catch (issue) {
+        if (isMounted) {
+          setArticleId(null);
+          setError(issue instanceof Error ? issue.message : "Unable to load article.");
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [params]);
 
   const galleryAssets = useMemo(() => {
     if (!article) return [] as ArticleAsset[];
@@ -66,6 +88,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
     : "Loading status…";
 
   const loadArticle = useCallback(async () => {
+    if (!articleId) return;
     setLoading(true);
     setError(null);
     setUpdateMessage(null);
@@ -130,6 +153,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
   );
 
   const viewerCanEdit = article?.viewerCanEdit ?? false;
+  const redirectTarget = pathname ?? (articleId ? `/articles/${articleId}` : "/");
 
   return (
     <div className="app-shell px-4 pb-16 pt-10 sm:px-6 lg:px-10">
@@ -151,7 +175,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
             </div>
             <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
               <ThemeToggle mode={themeMode} onChange={setThemeMode} />
-              <AuthStatus redirectTo={pathname ?? `/articles/${articleId}`} />
+              <AuthStatus redirectTo={redirectTarget} />
             </div>
           </div>
           <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
@@ -225,7 +249,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
                     {galleryAssets.map((asset) => {
                       const src = resolveUploadUrl(asset.key);
                       return src ? (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img
                           key={asset.id}
                           src={src}
@@ -249,7 +273,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
                     {sourceAssets.map((asset) => {
                       const src = resolveUploadUrl(asset.key);
                       return src ? (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img
                           key={asset.id}
                           src={src}
