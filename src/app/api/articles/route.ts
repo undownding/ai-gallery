@@ -12,6 +12,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const MAX_MEDIA_UPLOADS = 12;
 const MAX_SOURCE_UPLOADS = 8;
+const THUMBNAIL_TARGET_EDGE = 500;
 
 export async function GET(request: NextRequest) {
 
@@ -258,9 +259,28 @@ async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
 
   try {
     const originalBuffer = Buffer.from(source.data, "base64");
+    const resizeTransform: { width?: number; height?: number; fit: "scale-down" } = { fit: "scale-down" };
+
+    try {
+      const info = await imageBinding.info(bufferToReadableStream(originalBuffer));
+      if ("width" in info && "height" in info && info.width > 0 && info.height > 0) {
+        if (info.width <= info.height) {
+          resizeTransform.width = THUMBNAIL_TARGET_EDGE;
+        } else {
+          resizeTransform.height = THUMBNAIL_TARGET_EDGE;
+        }
+      } else {
+        resizeTransform.width = THUMBNAIL_TARGET_EDGE;
+      }
+    } catch (infoError) {
+      console.warn("Unable to read image metadata", infoError);
+      resizeTransform.width = THUMBNAIL_TARGET_EDGE;
+      resizeTransform.height = THUMBNAIL_TARGET_EDGE;
+    }
+
     const transformer = imageBinding.input(bufferToReadableStream(originalBuffer));
     const transformation = await transformer
-      .transform({ width: 500, fit: "scale-down" })
+      .transform(resizeTransform)
       .output({ format: "image/webp", quality: 80 });
 
     const response = await transformation.response();
