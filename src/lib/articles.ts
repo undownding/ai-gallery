@@ -12,6 +12,7 @@ export type ArticleResponsePayload = {
   thumbnailImage: ArticleAssetPayload | null;
   media: ArticleAssetPayload[];
   sources: ArticleAssetPayload[];
+  viewerCanEdit: boolean;
 };
 
 type UploadLink = { upload: Upload | null } | null | undefined;
@@ -33,7 +34,10 @@ function toAsset(link?: UploadLink): ArticleAssetPayload | null {
   return { id, key, eTag, createdAt };
 }
 
-export function serializeArticle(article: ArticleWithAssets): ArticleResponsePayload {
+export function serializeArticle(
+  article: ArticleWithAssets,
+  options?: { viewerCanEdit?: boolean },
+): ArticleResponsePayload {
   return {
     id: article.id,
     title: article.title ?? null,
@@ -44,5 +48,6 @@ export function serializeArticle(article: ArticleWithAssets): ArticleResponsePay
     thumbnailImage: toAsset(article.thumbnailImage),
     media: (article.media ?? []).map((entry) => toAsset(entry)).filter(isAsset),
     sources: (article.sources ?? []).map((entry) => toAsset(entry)).filter(isAsset),
+    viewerCanEdit: Boolean(options?.viewerCanEdit),
   };
 }

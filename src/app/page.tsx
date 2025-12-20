@@ -23,6 +23,7 @@ type ArticleRecord = {
   sources: ArticleAsset[];
   createdAt: string;
   updatedAt: string;
+  viewerCanEdit: boolean;
 };
 
 type ArticlesResponse = {

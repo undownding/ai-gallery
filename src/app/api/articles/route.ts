@@ -1,13 +1,17 @@
-import { and, desc, eq, lt, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, type SQL } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
-import { articles } from "@/db/schema";
+import { articleMediaAssets, articleSourceAssets, articleThumbnailImages, articles, uploads } from "@/db/schema";
 import { serializeArticle, type ArticleResponsePayload } from "@/lib/articles";
+import { getSessionUser, type SessionUser } from "@/lib/session";
+import { getUploadInlineData, uploadBase64Image } from "@/lib/storage";
 import {getCloudflareContext} from "@opennextjs/cloudflare"
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const MAX_MEDIA_UPLOADS = 12;
+const MAX_SOURCE_UPLOADS = 8;
 
 export async function GET(request: NextRequest) {
 
@@ -48,10 +52,201 @@ export async function GET(request: NextRequest) {
   });
 }
 
+type CreateArticleBody = {
+  text?: string;
+  title?: string;
+  media?: Array<string | { id?: string | null }>;
+  sourcesId?: Array<string | null>;
+};
+
+type SanitizedCreateArticle = {
+  text: string;
+  title: string | null;
+  mediaUploadIds: string[];
+  sourceUploadIds: string[];
+};
+
+export async function POST(request: NextRequest) {
+  const env = getCloudflareContext().env;
+  const user = await getSessionUser(request, env);
+  if (!user) {
+    return NextResponse.json({ error: "Sign in to save a story." }, { status: 401 });
+  }
+
+  let payload: CreateArticleBody;
+
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+  }
+
+  const validation = validateCreateBody(payload);
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.message }, { status: validation.status });
+  }
+
+  const { text, title, mediaUploadIds, sourceUploadIds } = validation.value;
+
+  const ownership = await ensureUploadsOwnedByUser(env, [...mediaUploadIds, ...sourceUploadIds], user.id);
+  if (!ownership.success) {
+    return NextResponse.json({ error: ownership.message }, { status: ownership.status });
+  }
+
+  const thumbnailUpload = await createThumbnailFromMedia(mediaUploadIds[0], user);
+
+  const db = getDb(env);
+  let articleId: string | null = null;
+
+  try {
+    await db.transaction(async (tx) => {
+      const created = await tx
+        .insert(articles)
+        .values({ text, title, userId: user.id, isPublic: false })
+        .returning({ id: articles.id })
+        .get();
+
+      articleId = created.id;
+
+      await tx
+        .insert(articleThumbnailImages)
+        .values({ articleId: created.id, uploadId: thumbnailUpload.id })
+        .run();
+
+      if (mediaUploadIds.length) {
+        const mediaValues = mediaUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
+        await tx.insert(articleMediaAssets).values(mediaValues).run();
+      }
+
+      if (sourceUploadIds.length) {
+        const sourceValues = sourceUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
+        await tx.insert(articleSourceAssets).values(sourceValues).run();
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to save article.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  if (!articleId) {
+    return NextResponse.json({ error: "Unable to save article." }, { status: 500 });
+  }
+
+  const article = await db.query.articles.findFirst({
+    where: eq(articles.id, articleId),
+    with: {
+      thumbnailImage: { with: { upload: true } },
+      media: { with: { upload: true } },
+      sources: { with: { upload: true } },
+    },
+  });
+
+  if (!article) {
+    return NextResponse.json({ error: "Article not found after creation." }, { status: 500 });
+  }
+
+  return NextResponse.json({ data: serializeArticle(article, { viewerCanEdit: true }) }, { status: 201 });
+}
+
 function clampPageSize(rawLimit: string | null) {
     const parsed = Number(rawLimit);
     if (Number.isFinite(parsed)) {
         return Math.min(Math.max(Math.trunc(parsed), 1), MAX_PAGE_SIZE);
     }
     return DEFAULT_PAGE_SIZE;
+}
+
+function validateCreateBody(
+  body: CreateArticleBody,
+):
+  | { success: true; value: SanitizedCreateArticle }
+  | { success: false; message: string; status: number } {
+  if (!body || typeof body !== "object") {
+    return { success: false, message: "Invalid JSON payload.", status: 400 };
+  }
+
+  const textValue = typeof body.text === "string" ? body.text.trim() : "";
+  if (!textValue) {
+    return { success: false, message: "Field 'text' is required.", status: 400 };
+  }
+
+  const mediaUploadIds = extractUploadIds(body.media);
+  if (!mediaUploadIds.length) {
+    return { success: false, message: "Provide at least one media upload.", status: 400 };
+  }
+  if (mediaUploadIds.length > MAX_MEDIA_UPLOADS) {
+    return { success: false, message: `A maximum of ${MAX_MEDIA_UPLOADS} media uploads is supported.`, status: 400 };
+  }
+
+  const sourceUploadIds = extractUploadIds(body.sourcesId ?? []);
+  if (sourceUploadIds.length > MAX_SOURCE_UPLOADS) {
+    return { success: false, message: `A maximum of ${MAX_SOURCE_UPLOADS} source uploads is supported.`, status: 400 };
+  }
+
+  const title = typeof body.title === "string" ? body.title.trim() : null;
+
+  return {
+    success: true,
+    value: {
+      text: textValue,
+      title: title || null,
+      mediaUploadIds,
+      sourceUploadIds,
+    },
+  };
+}
+
+function extractUploadIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const collected = raw
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return entry.trim();
+      }
+      if (entry && typeof entry === "object" && "id" in entry) {
+        const value = (entry as { id?: string | null }).id;
+        return typeof value === "string" ? value.trim() : "";
+      }
+      return "";
+    })
+    .filter((id) => Boolean(id));
+
+  return Array.from(new Set(collected));
+}
+
+async function ensureUploadsOwnedByUser(
+  env: ReturnType<typeof getCloudflareContext>["env"],
+  uploadIds: string[],
+  userId: string,
+) {
+  const uniqueIds = Array.from(new Set(uploadIds));
+
+  if (!uniqueIds.length) {
+    return { success: true } as const;
+  }
+
+  const db = getDb(env);
+  const rows = await db
+    .select({ id: uploads.id, userId: uploads.userId })
+    .from(uploads)
+    .where(inArray(uploads.id, uniqueIds));
+
+  if (rows.length !== uniqueIds.length) {
+    return { success: false, status: 404 as const, message: "One or more uploads are missing." } as const;
+  }
+
+  const unauthorized = rows.find((row) => row.userId !== userId);
+  if (unauthorized) {
+    return { success: false, status: 403 as const, message: "One or more uploads are unavailable." } as const;
+  }
+
+  return { success: true } as const;
+}
+
+async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
+  const source = await getUploadInlineData(uploadId, user.id);
+  return uploadBase64Image(source.data, source.mimeType, user);
 }

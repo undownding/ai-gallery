@@ -6,7 +6,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getDb } from "@/db/client";
 import { NewUpload, uploads } from "@/db/schema";
 import { generateContent, type AspectRatio, type ImageSize } from "@/lib/gemini";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, type SessionUser } from "@/lib/session";
 import { uploadBase64Image } from "@/lib/storage";
 
 const encoder = new TextEncoder();
@@ -106,14 +106,14 @@ function decodeSignedPayload(token: string): SignedGeneratePayload | null {
     }
 }
 
-function createGenerationStream(params: SanitizedGeneratePayload, userId: string) {
+function createGenerationStream(params: SanitizedGeneratePayload, user: SessionUser) {
     const { prompt, aspectRatio, imageSize, referenceUploadIds } = params;
 
     return new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
                 let upload: NewUpload | null = null;
-                const response = await generateContent(prompt, aspectRatio, imageSize, referenceUploadIds, userId);
+                const response = await generateContent(prompt, aspectRatio, imageSize, referenceUploadIds, user.id);
                 const candidates = response.candidates ?? [];
 
                 for (const candidate of candidates) {
@@ -127,9 +127,7 @@ function createGenerationStream(params: SanitizedGeneratePayload, userId: string
 
                         const inlineData = (part as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
                         if (inlineData?.data) {
-                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType, {
-                                userId,
-                            });
+                            upload = await uploadBase64Image(inlineData.data, inlineData.mimeType, user);
                             sendEvent(controller, "image", upload);
                         }
                     }
@@ -215,7 +213,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: ownershipCheck.error }, { status: ownershipCheck.status });
     }
 
-    const stream = createGenerationStream(validation.value, user.id);
+    const stream = createGenerationStream(validation.value, user);
     return new Response(stream, { headers: SSE_HEADERS });
 }
 

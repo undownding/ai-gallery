@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
@@ -36,6 +36,12 @@ type ReferenceAsset = UploadRecord & { previewUrl?: string };
 
 type StreamStatus = "idle" | "running" | "success" | "error";
 
+type ArticleCreationState =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "success"; articleId: string }
+  | { status: "error"; error: string };
+
 type ParsedEvent = {
   event: string;
   data: unknown;
@@ -60,18 +66,38 @@ export default function GeneratePage() {
   const [status, setStatus] = useState<StreamStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [previewUpload, setPreviewUpload] = useState<UploadRecord | null>(null);
+  const [generatedUploads, setGeneratedUploads] = useState<UploadRecord[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showRenderOptions, setShowRenderOptions] = useState(false);
+  const [articleCreationState, setArticleCreationState] = useState<ArticleCreationState>({ status: "idle" });
+  const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
+  const [submittedReferenceIds, setSubmittedReferenceIds] = useState<string[]>([]);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
 
   const pathname = usePathname();
+  const router = useRouter();
 
   const controllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRegistry = useRef(new Set<string>());
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearRedirectTimers = useCallback(() => {
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setRedirectCountdown(null);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -80,6 +106,12 @@ export default function GeneratePage() {
       previewUrlRegistry.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      clearRedirectTimers();
+    };
+  }, [clearRedirectTimers]);
 
   useEffect(() => {
     let active = true;
@@ -147,6 +179,11 @@ export default function GeneratePage() {
     return resolveUploadUrl(previewUpload.key);
   }, [previewUpload]);
 
+  const mediaUploadIds = useMemo(() => {
+    const ids = generatedUploads.map((upload) => upload.id).filter(Boolean);
+    return Array.from(new Set(ids));
+  }, [generatedUploads]);
+
   const loginHref = useMemo(() => {
     const target = pathname && pathname.startsWith("/") ? pathname : "/generate";
     return `/api/auth/github?redirectTo=${encodeURIComponent(target)}`;
@@ -157,6 +194,108 @@ export default function GeneratePage() {
     const ratioLabel = aspectRatio || "Auto";
     return `${sizeLabel} · ${ratioLabel}`;
   }, [aspectRatio, imageSize]);
+
+  const creationStatus = articleCreationState.status;
+  const createdArticleId = creationStatus === "success" ? articleCreationState.articleId : null;
+  const creationError = creationStatus === "error" ? articleCreationState.error : null;
+
+  useEffect(() => {
+    if (status !== "success") return;
+    if (!submittedPrompt) return;
+    if (!mediaUploadIds.length) return;
+    if (articleCreationState.status !== "idle") return;
+    if (!sessionUser) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const persistArticle = async () => {
+      setArticleCreationState({ status: "pending" });
+      try {
+        const response = await fetch("/api/articles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: submittedPrompt,
+            media: mediaUploadIds,
+            sourcesId: submittedReferenceIds,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const message = (await safeReadError(response)) ?? "Unable to save article.";
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as { data?: { id?: string } };
+        const articleId = payload?.data?.id;
+        if (!articleId) {
+          throw new Error("Article id is missing in the response.");
+        }
+
+        if (!cancelled) {
+          setArticleCreationState({ status: "success", articleId });
+        }
+      } catch (error) {
+        if ((error as DOMException)?.name === "AbortError" || cancelled) {
+          return;
+        }
+        setArticleCreationState({
+          status: "error",
+          error: error instanceof Error ? error.message : "Unable to save article.",
+        });
+      }
+    };
+
+    void persistArticle();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [
+    status,
+    submittedPrompt,
+    mediaUploadIds,
+    submittedReferenceIds,
+    sessionUser,
+    articleCreationState.status,
+  ]);
+
+  useEffect(() => {
+    if (creationStatus !== "success" || !createdArticleId) {
+      return;
+    }
+
+    clearRedirectTimers();
+    setRedirectCountdown(5);
+
+    countdownIntervalRef.current = setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev === null) return prev;
+        return prev > 0 ? prev - 1 : 0;
+      });
+    }, 1000);
+
+    redirectTimerRef.current = setTimeout(() => {
+      router.push(`/articles/${createdArticleId}`);
+    }, 5000);
+
+    return () => {
+      clearRedirectTimers();
+    };
+  }, [creationStatus, createdArticleId, clearRedirectTimers, router]);
+
+  const handleImmediateRedirect = useCallback(() => {
+    if (!createdArticleId) return;
+    clearRedirectTimers();
+    router.push(`/articles/${createdArticleId}`);
+  }, [createdArticleId, clearRedirectTimers, router]);
+
+  const retryArticleSave = useCallback(() => {
+    setArticleCreationState({ status: "idle" });
+  }, []);
 
   const handleFileSelection = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -218,7 +357,12 @@ export default function GeneratePage() {
     controllerRef.current?.abort();
     controllerRef.current = null;
     setStatus("idle");
-  }, []);
+    setGeneratedUploads([]);
+    setArticleCreationState({ status: "idle" });
+    setSubmittedPrompt(null);
+    setSubmittedReferenceIds([]);
+    clearRedirectTimers();
+  }, [clearRedirectTimers]);
 
   const handleEvent = useCallback((packet: ParsedEvent) => {
     console.log("handleEvent:", packet);
@@ -226,8 +370,15 @@ export default function GeneratePage() {
     switch (packet.event) {
       case "image":
       case "done": {
-        if (packet.data && typeof packet.data === "object" && "key" in (packet.data as UploadRecord)) {
-          setPreviewUpload(packet.data as UploadRecord);
+        const uploadRecord = isUploadRecord(packet.data) ? (packet.data as UploadRecord) : null;
+        if (uploadRecord) {
+          setPreviewUpload(uploadRecord);
+          setGeneratedUploads((prev) => {
+            if (prev.some((item) => item.id === uploadRecord.id)) {
+              return prev;
+            }
+            return [...prev, uploadRecord];
+          });
         }
         if (packet.event === "done") {
           setStatus("success");
@@ -248,7 +399,8 @@ export default function GeneratePage() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) return;
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt) return;
     if (!sessionUser) {
       setErrorMessage("Sign in to generate an image.");
       return;
@@ -258,12 +410,17 @@ export default function GeneratePage() {
     const controller = new AbortController();
     controllerRef.current = controller;
 
+    clearRedirectTimers();
     setStatus("running");
     setErrorMessage(null);
     setPreviewUpload(null);
+    setGeneratedUploads([]);
+    setArticleCreationState({ status: "idle" });
+    setSubmittedPrompt(trimmedPrompt);
+    setSubmittedReferenceIds(referenceUploads.map((upload) => upload.id));
 
     const body: GenerationRequestPayload = {
-      prompt: prompt.trim(),
+      prompt: trimmedPrompt,
       aspectRatio: aspectRatio || undefined,
       imageSize: imageSize || undefined,
       referenceUploadIds: referenceUploads.map((upload) => upload.id),
@@ -281,7 +438,7 @@ export default function GeneratePage() {
     } finally {
       controllerRef.current = null;
     }
-  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser]);
+  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, clearRedirectTimers]);
 
   return (
     <>
@@ -499,6 +656,53 @@ export default function GeneratePage() {
                   </div>
                 </div>
 
+                {creationStatus !== "idle" && (
+                  <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/85 p-6 shadow-soft">
+                    <h2 className="text-lg font-semibold">Story draft</h2>
+                    {creationStatus === "pending" && (
+                      <p className="mt-3 text-sm text-[var(--muted)]">
+                        Saving this render with {mediaUploadIds.length} shot{mediaUploadIds.length === 1 ? "" : "s"} and {submittedReferenceIds.length} reference{submittedReferenceIds.length === 1 ? "" : "s"}.
+                      </p>
+                    )}
+                    {creationStatus === "success" && (
+                      <>
+                        <p className="mt-3 text-sm text-[var(--muted)]">
+                          Draft saved. Redirecting to the detail view in {redirectCountdown ?? 5} second{(redirectCountdown ?? 5) === 1 ? "" : "s"} to decide whether to publish.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleImmediateRedirect}
+                          className="mt-4 inline-flex items-center justify-center rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                        >
+                          Open detail now
+                        </button>
+                      </>
+                    )}
+                    {creationStatus === "error" && (
+                      <>
+                        <p className="mt-3 text-sm text-[var(--accent)]">{creationError}</p>
+                        <div className="mt-4 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={retryArticleSave}
+                            className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+                          >
+                            Retry save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleImmediateRedirect}
+                            disabled={!createdArticleId}
+                            className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            View last draft
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {errorMessage && (
                   <div className="rounded-3xl border border-[var(--accent)] bg-[var(--accent-soft)]/70 p-4 text-sm text-[var(--alert-text)] shadow-soft">
                     {errorMessage}
@@ -647,6 +851,13 @@ function FieldGroup({
       {children}
     </div>
   );
+}
+
+function isUploadRecord(value: unknown): value is UploadRecord {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  return "id" in value && "key" in value;
 }
 
 async function openGenerationStream(payload: GenerationRequestPayload, signal: AbortSignal) {

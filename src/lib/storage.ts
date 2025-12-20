@@ -22,20 +22,22 @@ const INVERSE_EXTENSION_MAP: Record<string, string> = Object.entries(EXTENSION_M
     {} as Record<string, string>,
 );
 
-function buildObjectKey(mimeType: string) {
-    const ext = EXTENSION_MAP[mimeType] ?? "bin";
-    const id = uuidv7();
-    return { id, key: `${dayjs().format("YYYY-MM/DD")}/${id}.${ext}` };
-}
-
-type UploadOptions = {
-    userId?: string;
+type UploadOwner = {
+    id: string;
+    login: string;
 };
 
-async function persistUpload(id: string, key: string, eTag?: string | null, options?: UploadOptions) {
+function buildObjectKey(mimeType: string, owner: UploadOwner) {
+    const ext = EXTENSION_MAP[mimeType] ?? "bin";
+    const id = uuidv7();
+    const prefix = dayjs().format("YYYY-MM");
+    return { id, key: `${prefix}/${owner.login}_${owner.id}/${id}.${ext}` };
+}
+
+async function persistUpload(id: string, key: string, eTag: string | null | undefined, owner: UploadOwner) {
     return getDb(getCloudflareContext().env)
         .insert(uploads)
-        .values({ id, key, eTag: eTag ?? "", userId: options?.userId ?? null })
+        .values({ id, key, eTag: eTag ?? "", userId: owner.id })
         .returning()
         .get();
 }
@@ -43,23 +45,23 @@ async function persistUpload(id: string, key: string, eTag?: string | null, opti
 export async function uploadBinaryImage(
     data: ArrayBuffer | Buffer,
     mimeType: string = DEFAULT_MIME_TYPE,
-    options?: UploadOptions,
+    owner: UploadOwner,
 ): Promise<Upload> {
     const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
     const normalizedMime = mimeType || DEFAULT_MIME_TYPE;
-    const { id, key } = buildObjectKey(normalizedMime);
+    const { id, key } = buildObjectKey(normalizedMime, owner);
 
     const obj = await getCloudflareContext().env.r2.put(key, buffer);
 
-    return persistUpload(id, key, obj?.etag, options);
+    return persistUpload(id, key, obj?.etag, owner);
 }
 
 export async function uploadBase64Image(
     base64String: string,
     mimeType: string = DEFAULT_MIME_TYPE,
-    options?: UploadOptions,
+    owner: UploadOwner,
 ): Promise<Upload> {
-    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType, options);
+    return uploadBinaryImage(Buffer.from(base64String, "base64"), mimeType, owner);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
