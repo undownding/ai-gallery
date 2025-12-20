@@ -48,6 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 type UpdateArticleBody = {
   isPublic?: boolean;
+  title?: string | null;
 };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -70,9 +71,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
   }
 
-  if (typeof payload.isPublic !== "boolean") {
-    return NextResponse.json({ error: "Field 'isPublic' must be a boolean." }, { status: 400 });
+  const hasVisibilityUpdate = typeof payload.isPublic === "boolean";
+  const hasTitleUpdate = Object.prototype.hasOwnProperty.call(payload, "title");
+
+  if (!hasVisibilityUpdate && !hasTitleUpdate) {
+    return NextResponse.json({ error: "Provide 'isPublic' or 'title' to update." }, { status: 400 });
   }
+
+  if (hasTitleUpdate && payload.title !== null && typeof payload.title !== "string") {
+    return NextResponse.json({ error: "Field 'title' must be a string or null." }, { status: 400 });
+  }
+
+  const normalizedTitle = hasTitleUpdate
+    ? payload.title === null
+      ? null
+      : (payload.title?.trim() || null)
+    : undefined;
 
   const db = getDb(env);
   const existing = await db.query.articles.findFirst({ where: eq(articles.id, articleId) });
@@ -84,9 +98,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "You do not have permission to update this article." }, { status: 403 });
   }
 
+  const updateData: { isPublic?: boolean; title?: string | null } = {};
+  if (hasVisibilityUpdate) {
+    updateData.isPublic = payload.isPublic;
+  }
+  if (hasTitleUpdate) {
+    updateData.title = normalizedTitle ?? null;
+  }
+
   await db
     .update(articles)
-    .set({ isPublic: payload.isPublic, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .set({ ...updateData, updatedAt: sql`CURRENT_TIMESTAMP` })
     .where(eq(articles.id, articleId))
     .run();
 

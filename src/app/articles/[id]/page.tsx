@@ -25,6 +25,10 @@ export default function ArticleDetailPage({ params }: PageParams) {
   const { article, setArticle, articleId, loading, error, reload } = useArticleDetail(params);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<UpdateMessage>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
 
@@ -56,6 +60,14 @@ export default function ArticleDetailPage({ params }: PageParams) {
 
   const redirectTarget = pathname ?? (articleId ? `/articles/${articleId}` : "/");
   const promptIsLong = (article?.text?.length ?? 0) > 320;
+
+  useEffect(() => {
+    setTitleDraft(article?.title ?? "");
+    if (!article) {
+      setEditingTitle(false);
+      setTitleError(null);
+    }
+  }, [article?.title, article]);
 
   useEffect(() => {
     let active = true;
@@ -105,7 +117,9 @@ export default function ArticleDetailPage({ params }: PageParams) {
     return article.author.id === sessionUser.id;
   }, [article?.author?.id, sessionUser?.id]);
 
-  const canToggleVisibility = Boolean(article?.viewerCanEdit && viewerIsAuthor);
+  const canManageStory = Boolean(article?.viewerCanEdit && viewerIsAuthor);
+  const canToggleVisibility = canManageStory;
+  const canEditTitle = canManageStory;
 
   const handleVisibilityToggle = useCallback(async () => {
     if (!article || !canToggleVisibility) return;
@@ -142,6 +156,45 @@ export default function ArticleDetailPage({ params }: PageParams) {
     reload();
   }, [reload]);
 
+  const handleBeginEditTitle = useCallback(() => {
+    if (!canEditTitle) return;
+    setEditingTitle(true);
+    setTitleError(null);
+    setUpdateMessage(null);
+  }, [canEditTitle]);
+
+  const handleCancelEditTitle = useCallback(() => {
+    setEditingTitle(false);
+    setTitleError(null);
+    setTitleDraft(article?.title ?? "");
+  }, [article?.title]);
+
+  const handleSaveTitle = useCallback(async () => {
+    if (!article || !canEditTitle) return;
+    setSavingTitle(true);
+    setTitleError(null);
+    try {
+      const response = await fetch(`/api/articles/${article.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: titleDraft.trim() || null }),
+      });
+      if (!response.ok) {
+        const message = (await safeReadError(response)) ?? "Unable to update title.";
+        throw new Error(message);
+      }
+      const payload = (await response.json()) as { data: ArticleResponsePayload };
+      setArticle(payload.data);
+      setTitleDraft(payload.data.title ?? "");
+      setEditingTitle(false);
+      setUpdateMessage({ type: "success", text: "Title updated." });
+    } catch (issue) {
+      setTitleError(issue instanceof Error ? issue.message : "Unable to update title.");
+    } finally {
+      setSavingTitle(false);
+    }
+  }, [article, canEditTitle, setArticle, titleDraft]);
+
   return (
     <div className="app-shell px-4 pb-20 pt-10 sm:px-6 lg:px-12">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
@@ -155,9 +208,66 @@ export default function ArticleDetailPage({ params }: PageParams) {
               >
                 Back to feed
               </button>
-              <h1 className="text-[clamp(2.75rem,5vw,4.75rem)] font-serif leading-[1.08] text-[var(--foreground)]">
-                {article?.title ?? "Untitled story"}
-              </h1>
+              {editingTitle ? (
+                <div className="space-y-3">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
+                    Story title
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        handleSaveTitle();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleCancelEditTitle();
+                      }
+                    }}
+                    className="w-full rounded-[28px] border border-[var(--border)] bg-[var(--background)]/60 px-6 py-4 text-3xl font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                    placeholder="Untitled story"
+                    disabled={savingTitle}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveTitle}
+                      disabled={savingTitle}
+                      className="rounded-full border border-[var(--border)] px-6 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {savingTitle ? "Saving title…" : "Save title"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditTitle}
+                      disabled={savingTitle}
+                      className="rounded-full border border-transparent px-6 py-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {titleError && <p className="text-sm text-[var(--accent)]">{titleError}</p>}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-start gap-3">
+                  <h1 className="text-[clamp(2.75rem,5vw,4.75rem)] font-serif leading-[1.08] text-[var(--foreground)]">
+                    {article?.title ?? "Untitled story"}
+                  </h1>
+                  {canEditTitle && (
+                    <button
+                      type="button"
+                      onClick={handleBeginEditTitle}
+                      className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    >
+                      Edit title
+                    </button>
+                  )}
+                </div>
+              )}
               <p className="text-sm text-[var(--muted)]">{statusLabel}</p>
             </div>
             <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
