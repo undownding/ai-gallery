@@ -99,31 +99,32 @@ export async function POST(request: NextRequest) {
   let articleId: string | null = null;
 
   try {
-    await db.transaction(async (tx) => {
-      const created = await tx
-        .insert(articles)
-        .values({ text, title, userId: user.id, isPublic: false })
-        .returning({ id: articles.id })
-        .get();
+    const created = await db
+      .insert(articles)
+      .values({ text, title, userId: user.id, isPublic: false })
+      .returning({ id: articles.id })
+      .get();
 
-      articleId = created.id;
+    articleId = created.id;
 
-      await tx
-        .insert(articleThumbnailImages)
-        .values({ articleId: created.id, uploadId: thumbnailUpload.id })
-        .run();
+    await db
+      .insert(articleThumbnailImages)
+      .values({ articleId: created.id, uploadId: thumbnailUpload.id })
+      .run();
 
-      if (mediaUploadIds.length) {
-        const mediaValues = mediaUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
-        await tx.insert(articleMediaAssets).values(mediaValues).run();
-      }
+    if (mediaUploadIds.length) {
+      const mediaValues = mediaUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
+      await db.insert(articleMediaAssets).values(mediaValues).run();
+    }
 
-      if (sourceUploadIds.length) {
-        const sourceValues = sourceUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
-        await tx.insert(articleSourceAssets).values(sourceValues).run();
-      }
-    });
+    if (sourceUploadIds.length) {
+      const sourceValues = sourceUploadIds.map((uploadId) => ({ articleId: created.id, uploadId }));
+      await db.insert(articleSourceAssets).values(sourceValues).run();
+    }
   } catch (error) {
+    if (articleId) {
+      await db.delete(articles).where(eq(articles.id, articleId)).run();
+    }
     const message = error instanceof Error ? error.message : "Unable to save article.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
