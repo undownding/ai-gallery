@@ -93,10 +93,43 @@ export function StableMarkdownTypewriter({
 	const renderedText = useTypingWindow(targetText, delay, stableKey);
 	const className = motionProps?.className;
 	const style = resolveMotionStyle(motionProps?.style);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const enhancedStyle = useMemo(() => {
+		return {
+			...style,
+			overflowY: style?.overflowY ?? "auto",
+			scrollbarWidth: "none",
+			msOverflowStyle: "none",
+		} satisfies CSSProperties;
+	}, [style]);
+
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+		container.scrollTop = container.scrollHeight;
+	}, [renderedText]);
 
 	return (
-		<div key={stableKey} className={className} style={style} data-typewriter-key={stableKey}>
-			<ReactMarkdown {...markdownProps}>{renderedText}</ReactMarkdown>
-		</div>
+		<>
+			<div
+				key={stableKey}
+				ref={containerRef}
+				className={className}
+				style={enhancedStyle}
+				data-typewriter-key={stableKey}
+				data-typewriter-scroll-container
+			>
+				<ReactMarkdown {...markdownProps}>{renderedText}</ReactMarkdown>
+			</div>
+			<style jsx>{`
+				[data-typewriter-scroll-container] {
+					scrollbar-width: none;
+					-ms-overflow-style: none;
+				}
+				[data-typewriter-scroll-container]::-webkit-scrollbar {
+					display: none;
+				}
+			`}</style>
+		</>
 	);
 }
