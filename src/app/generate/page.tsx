@@ -64,12 +64,14 @@ export default function GeneratePage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showRenderOptions, setShowRenderOptions] = useState(false);
+  const [runDurationMs, setRunDurationMs] = useState<number | null>(null);
 
   const pathname = usePathname();
 
   const controllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRegistry = useRef(new Set<string>());
+  const generationStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     const registry = previewUrlRegistry.current;
@@ -157,6 +159,8 @@ export default function GeneratePage() {
     return `${sizeLabel} · ${ratioLabel}`;
   }, [aspectRatio, imageSize]);
 
+  const runDurationLabel = runDurationMs != null ? formatDuration(runDurationMs) : "—";
+
   const handleFileSelection = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -217,6 +221,15 @@ export default function GeneratePage() {
     controllerRef.current?.abort();
     controllerRef.current = null;
     setStatus("idle");
+    generationStartRef.current = null;
+    setRunDurationMs(null);
+  }, []);
+
+  const finalizeRunDuration = useCallback(() => {
+    if (generationStartRef.current != null) {
+      setRunDurationMs(Date.now() - generationStartRef.current);
+      generationStartRef.current = null;
+    }
   }, []);
 
   const handleEvent = useCallback((packet: ParsedEvent) => {
@@ -230,6 +243,7 @@ export default function GeneratePage() {
         }
         if (packet.event === "done") {
           setStatus("success");
+          finalizeRunDuration();
         }
         break;
       }
@@ -239,12 +253,13 @@ export default function GeneratePage() {
           : "Generation failed.";
         setErrorMessage(message);
         setStatus("error");
+        finalizeRunDuration();
         break;
       }
       default:
         break;
     }
-  }, []);
+  }, [finalizeRunDuration]);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -257,6 +272,8 @@ export default function GeneratePage() {
     const controller = new AbortController();
     controllerRef.current = controller;
 
+    generationStartRef.current = Date.now();
+    setRunDurationMs(null);
     setStatus("running");
     setErrorMessage(null);
     setPreviewUpload(null);
@@ -277,10 +294,11 @@ export default function GeneratePage() {
       }
       setStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "Something went wrong.");
+      finalizeRunDuration();
     } finally {
       controllerRef.current = null;
     }
-  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser]);
+  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, finalizeRunDuration]);
 
   return (
     <>
@@ -294,7 +312,7 @@ export default function GeneratePage() {
               <div className="absolute -left-16 top-6 h-40 w-40 rounded-full bg-[var(--accent-soft)] blur-2xl" />
               <div className="absolute inset-x-10 bottom-0 h-40 rounded-[60px] bg-gradient-to-r from-[var(--accent-soft)] via-transparent to-[var(--accent-soft)] blur-3xl" />
             </div>
-            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
                 <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
@@ -317,8 +335,15 @@ export default function GeneratePage() {
                     </div>
                   </button>
                 </div>
+
+                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/80 p-6 text-sm text-[var(--muted)] shadow-soft">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Creative direction tip</p>
+                  <p className="mt-2">
+                    Combine cinematic verbs with lighting and lens jargon for the most evocative renders. Adjust ratios and resolution from the pill above whenever you need tighter framing.
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-col gap-3 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)]/60 to-[var(--background)]/40 p-6 text-sm">
+              <div className="flex w-full flex-col gap-3 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)]/60 to-[var(--background)]/40 p-6 text-sm lg:max-w-sm lg:self-center">
                 <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Live response</p>
                 <p className="text-base font-semibold">{statusLabel(status)}</p>
                 <p className="text-[var(--muted)]">The API streams structured SSE events: reference validation, image uploads, then completion meta.</p>
@@ -396,8 +421,9 @@ export default function GeneratePage() {
                       </label>
                     </div>
 
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {referenceUploads.map((asset) => {
+                    <div className={`mt-4 ${referenceUploads.length ? "max-h-[26rem] overflow-y-auto pr-1" : ""}`}>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {referenceUploads.map((asset) => {
                         const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
                         return (
                           <div key={asset.id} className="relative overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-soft">
@@ -418,23 +444,18 @@ export default function GeneratePage() {
                             </button>
                           </div>
                         );
-                      })}
+                        })}
 
-                      {!referenceUploads.length && (
-                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-sm text-[var(--muted)]">
-                          Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
-                        </div>
-                      )}
+                        {!referenceUploads.length && (
+                          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-sm text-[var(--muted)]">
+                            Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </FieldGroup>
 
-                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/70 p-6 text-sm text-[var(--muted)] shadow-soft">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Creative direction tip</p>
-                  <p className="mt-2">
-                    Combine cinematic verbs with lighting and lens jargon for the most evocative renders. Adjust ratios and resolution from the pill above whenever you need tighter framing.
-                  </p>
-                </div>
               </form>
 
               <aside className="flex flex-col gap-6">
@@ -469,6 +490,10 @@ export default function GeneratePage() {
                     <div className="flex items-center justify-between border-b border-dashed border-[var(--border)] pb-3">
                       <span className="text-[var(--muted)]">Status</span>
                       <span className="font-semibold text-[var(--foreground)]">{statusLabel(status)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--muted)]">Duration</span>
+                      <span className="font-semibold">{runDurationLabel}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">Resolution</span>
@@ -718,6 +743,22 @@ function resolveUploadUrl(key: string | null | undefined) {
   const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   if (!publicBase) return null;
   return `${publicBase.replace(/\/$/, "")}/${key}`;
+}
+
+function formatDuration(durationMs: number) {
+  if (durationMs < 1000) {
+    return `${Math.round(durationMs)}ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  if (seconds < 60) {
+    const formatted = seconds < 10 ? seconds.toFixed(1) : Math.round(seconds).toString();
+    return `${formatted}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
 }
 
 async function safeReadError(response: Response): Promise<string | null> {
