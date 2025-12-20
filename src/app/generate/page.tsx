@@ -102,6 +102,7 @@ export default function GeneratePage() {
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thinkScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasImageChunkRef = useRef(false);
 
   const clearRedirectTimers = useCallback(() => {
     if (redirectTimerRef.current) {
@@ -227,8 +228,11 @@ export default function GeneratePage() {
   }, [previewUpload]);
 
   const mediaUploadIds = useMemo(() => {
-    const ids = generatedUploads.map((upload) => upload.id).filter(Boolean);
-    return Array.from(new Set(ids));
+    if (!generatedUploads.length) {
+      return [];
+    }
+    const lastId = generatedUploads[generatedUploads.length - 1]?.id;
+    return lastId ? [lastId] : [];
   }, [generatedUploads]);
 
   const loginHref = useMemo(() => {
@@ -415,6 +419,7 @@ export default function GeneratePage() {
     setSubmittedPrompt(null);
     setSubmittedReferenceIds([]);
     setStreamedText("");
+    hasImageChunkRef.current = false;
     clearRedirectTimers();
   }, [clearRedirectTimers]);
 
@@ -429,23 +434,25 @@ export default function GeneratePage() {
         }
         break;
       }
-      // case "image": {
-      //   const uploadRecord = isUploadRecord(packet.data) ? (packet.data as UploadRecord) : null;
-      //   if (uploadRecord) {
-      //     setPreviewUpload(uploadRecord);
-      //     setGeneratedUploads((prev) => {
-      //       if (prev.some((item) => item.id === uploadRecord.id)) {
-      //         return prev;
-      //       }
-      //       return [...prev, uploadRecord];
-      //     });
-      //   }
-      //   break;
-      // }
+      case "image": {
+        const uploadRecord = isUploadRecord(packet.data) ? (packet.data as UploadRecord) : null;
+        if (uploadRecord) {
+          hasImageChunkRef.current = true;
+          setPreviewUpload(uploadRecord);
+          setGeneratedUploads((prev) => {
+            if (prev.some((item) => item.id === uploadRecord.id)) {
+              return prev;
+            }
+            return [...prev, uploadRecord];
+          });
+        }
+        break;
+      }
       case "done": {
         const payload = packet.data as DoneEventPayload;
         const uploadRecord = isUploadRecord(payload?.upload) ? (payload?.upload as UploadRecord) : null;
         if (uploadRecord) {
+          hasImageChunkRef.current = true;
           setPreviewUpload(uploadRecord);
           setGeneratedUploads((prev) => {
             if (prev.some((item) => item.id === uploadRecord.id)) {
@@ -494,6 +501,7 @@ export default function GeneratePage() {
     setSubmittedPrompt(trimmedPrompt);
     setSubmittedReferenceIds(referenceUploads.map((upload) => upload.id));
     setStreamedText("");
+    hasImageChunkRef.current = false;
 
     const body: GenerationRequestPayload = {
       prompt: trimmedPrompt,
@@ -505,6 +513,7 @@ export default function GeneratePage() {
     try {
       const stream = await openGenerationStream(body, controller.signal);
       await consumeStream(stream, handleEvent);
+      setStatus((current) => (current === "running" && hasImageChunkRef.current ? "success" : current));
     } catch (error) {
       if ((error as DOMException)?.name === "AbortError") {
         return;
