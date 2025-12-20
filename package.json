@@ -20,6 +20,7 @@
 		"drizzle-orm": "^0.45.1",
 		"jose": "^5.9.6",
 		"next": "15.5.9",
+		"react-markdown": "^9.0.1",
 		"react": "19.1.4",
 		"react-dom": "19.1.4",
 		"uuid": "^13.0.0"

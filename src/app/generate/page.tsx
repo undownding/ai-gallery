@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -88,6 +89,7 @@ export default function GeneratePage() {
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
   const [streamedText, setStreamedText] = useState<string>("");
+  const [generationDuration, setGenerationDuration] = useState(0);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -98,6 +100,8 @@ export default function GeneratePage() {
   const previewUrlRegistry = useRef(new Set<string>());
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const thinkScrollRef = useRef<HTMLDivElement | null>(null);
 
   const clearRedirectTimers = useCallback(() => {
     if (redirectTimerRef.current) {
@@ -118,6 +122,9 @@ export default function GeneratePage() {
       articlePersistControllerRef.current?.abort();
       previewUrlRegistry.current.forEach((url) => URL.revokeObjectURL(url));
       previewUrlRegistry.current.clear();
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
     };
   }, []);
 
@@ -126,6 +133,29 @@ export default function GeneratePage() {
       clearRedirectTimers();
     };
   }, [clearRedirectTimers]);
+
+  useEffect(() => {
+    if (status === "running") {
+      setGenerationDuration(0);
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      durationIntervalRef.current = setInterval(() => {
+        setGenerationDuration((prev) => prev + 1);
+      }, 1000);
+      return;
+    }
+
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (!thinkScrollRef.current) return;
+    thinkScrollRef.current.scrollTop = thinkScrollRef.current.scrollHeight;
+  }, [streamedText]);
 
   useEffect(() => {
     let active = true;
@@ -486,6 +516,14 @@ export default function GeneratePage() {
     }
   }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, clearRedirectTimers]);
 
+  const actionButtonLabel = status === "running" ? "STOP" : "Generte Shot";
+  const actionButtonHandler = status === "running" ? stopGeneration : handleGenerate;
+  const actionButtonDisabled = status !== "running" && !canSubmit;
+  const actionButtonClasses =
+    status === "running"
+      ? "ml-auto w-full rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:w-auto"
+      : "ml-auto w-full rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto";
+
   return (
     <>
       <div className="app-shell px-4 py-10 sm:px-6 lg:px-10">
@@ -500,67 +538,13 @@ export default function GeneratePage() {
               <AuthStatus redirectTo={pathname ?? "/generate"} />
             </div>
             <div className="relative z-10 flex flex-col gap-8 pt-16 sm:pt-20">
-              <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[1.3fr_0.7fr] lg:items-start">
-                <div className="space-y-3 max-w-2xl lg:max-w-none">
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
-                  <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
-                    <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-                      Feed the Gemini image preview model with a cinematic brief, weave in references, and let the stream narrate each render hand-off.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-2 text-xs text-[var(--muted)]">
-                    <div>
-                      <StatusBadge status={status} />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex h-10 items-center rounded-full border border-[var(--border)] px-4 text-sm font-semibold text-[var(--foreground)]">
-                        {referenceUploads.length}/{MAX_REFERENCES} references linked
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowRenderOptions(true)}
-                        className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 text-left text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                      >
-                        <div className="flex flex-col leading-tight">
-                          <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">Render options</span>
-                          <span className="text-sm font-semibold">{renderOptionsLabel}</span>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex w-full flex-col gap-3 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)]/60 to-[var(--background)]/40 p-6 text-sm">
-                    <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Live response</p>
-                    <p className="text-base font-semibold">{statusLabel(status)}</p>
-                    <p className="text-[var(--muted)]">
-                      The API streams structured SSE events: live text narration, image uploads, then a final summary snapshot.
-                    </p>
-                    {streamedText && (
-                      <div className="max-h-60 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--background)]/40 p-4 text-sm text-[var(--foreground)]">
-                        {streamedText}
-                      </div>
-                    )}
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleGenerate}
-                        disabled={!canSubmit}
-                        className="flex-1 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {status === "running" ? "Generating" : "Generate shot"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={stopGeneration}
-                        disabled={status !== "running"}
-                        className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Stop
-                      </button>
-                    </div>
-                  </div>
+              <div className="space-y-3 max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
+                  <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
+                    Feed the Gemini image preview model with a cinematic brief, weave in references, and let the stream narrate each render hand-off.
+                  </p>
                 </div>
               </div>
             </div>
@@ -585,24 +569,14 @@ export default function GeneratePage() {
               {sessionError && <p className="mt-3 text-xs text-[var(--accent)]">{sessionError}</p>}
             </div>
           ) : (
-            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.85fr]">
-              <form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
-                <FieldGroup label="Prompt" description="Describe mood, composition, and stylistic cues. This text is required.">
-                  <textarea
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    rows={6}
-                    placeholder="e.g., Neon-drenched street market in Chongqing, rain-kissed pavement, anamorphic lens flares, f/1.4 depth"
-                    className="w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)]"
-                  />
-                </FieldGroup>
-
+            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+              <form className="flex flex-col gap-6" onSubmit={(event) => event.preventDefault()}>
                 <FieldGroup
-                  label="Reference uploads"
-                  description="Optional. Attach up to eight guiding shots. The files are persisted immediately to R2 and referenced by the API."
+                  label="Image selection"
+                  description="Optional. Attach up to eight guiding shots. Files persist immediately and stay in a single scroll row."
                 >
                   <div className="rounded-[30px] border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm text-[var(--muted)]">PNG, JPG, or WEBP · {referenceUploads.length}/{MAX_REFERENCES} linked</p>
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
                         <input
@@ -618,48 +592,98 @@ export default function GeneratePage() {
                       </label>
                     </div>
 
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {referenceUploads.map((asset) => {
-                        const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
-                        return (
-                          <div key={asset.id} className="relative overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-soft">
-                            {preview ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={preview} alt="Reference upload" className="h-48 w-full object-cover" />
-                            ) : (
-                              <div className="flex h-48 items-center justify-center text-xs text-[var(--muted)]">
-                                Configure NEXT_PUBLIC_R2_PUBLIC_URL to preview stored keys.
-                              </div>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => removeReference(asset.id)}
-                              className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-sm"
+                    <div className="mt-4 overflow-x-auto pb-2">
+                      <div className="flex min-h-[12rem] gap-4">
+                        {referenceUploads.map((asset) => {
+                          const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
+                          return (
+                            <div
+                              key={asset.id}
+                              className="relative h-48 w-48 shrink-0 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-soft"
                             >
-                              Remove
-                            </button>
-                          </div>
-                        );
-                      })}
+                              {preview ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={preview} alt="Reference upload" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--muted)]">
+                                  Configure NEXT_PUBLIC_R2_PUBLIC_URL to preview stored keys.
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeReference(asset.id)}
+                                className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-sm"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          );
+                        })}
 
-                      {!referenceUploads.length && (
-                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-sm text-[var(--muted)]">
-                          Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
-                        </div>
-                      )}
+                        {!referenceUploads.length && (
+                          <div className="flex h-48 w-full min-w-[16rem] shrink-0 items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-center text-sm text-[var(--muted)]">
+                            Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </FieldGroup>
 
-                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/70 p-6 text-sm text-[var(--muted)] shadow-soft">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Creative direction tip</p>
-                  <p className="mt-2">
-                    Combine cinematic verbs with lighting and lens jargon for the most evocative renders. Adjust ratios and resolution from the pill above whenever you need tighter framing.
-                  </p>
+                <FieldGroup label="Prompt" description="Describe mood, composition, and stylistic cues. This text is required.">
+                  <textarea
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    rows={6}
+                    placeholder="e.g., Neon-drenched street market in Chongqing, rain-kissed pavement, anamorphic lens flares, f/1.4 depth"
+                    className="w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)]"
+                  />
+                </FieldGroup>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRenderOptions(true)}
+                    className="inline-flex flex-1 min-w-[240px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 py-3 text-left text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:flex-none"
+                  >
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">Options</span>
+                      <span className="text-sm font-semibold">{renderOptionsLabel}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={actionButtonHandler}
+                    disabled={actionButtonDisabled}
+                    className={actionButtonClasses}
+                  >
+                    {actionButtonLabel}
+                  </button>
                 </div>
               </form>
 
               <aside className="flex flex-col gap-6">
+                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">Think</h2>
+                    <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">{statusLabel(status)}</span>
+                  </div>
+                  <div
+                    ref={thinkScrollRef}
+                    className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)]"
+                  >
+                    {streamedText ? (
+                      <ReactMarkdown className="space-y-3 text-sm leading-relaxed text-[var(--foreground)]">
+                        {streamedText}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-xs text-[var(--muted)]">
+                        The narration feed prints here once the stream starts.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="relative overflow-hidden rounded-[32px] border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--background)] p-6 shadow-soft">
                   <div className="pointer-events-none absolute inset-0 opacity-80">
                     <div className="absolute left-1/2 top-10 h-48 w-48 -translate-x-1/2 rounded-full bg-[var(--accent-soft)] blur-3xl" />
@@ -689,6 +713,10 @@ export default function GeneratePage() {
                   <h2 className="text-lg font-semibold">Run summary</h2>
                   <div className="mt-4 space-y-3 text-sm">
                     <div className="flex items-center justify-between border-b border-dashed border-[var(--border)] pb-3">
+                      <span className="text-[var(--muted)]">Duration</span>
+                      <span className="font-semibold text-[var(--foreground)]">{formatDuration(generationDuration)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">Status</span>
                       <span className="font-semibold text-[var(--foreground)]">{statusLabel(status)}</span>
                     </div>
@@ -854,23 +882,6 @@ export default function GeneratePage() {
   );
 }
 
-function StatusBadge({ status }: { status: StreamStatus }) {
-  const palette: Record<StreamStatus, string> = {
-    idle: "border-[var(--border)] text-[var(--muted)]",
-    running: "border-[var(--accent)] text-[var(--accent)]",
-    success: "border-emerald-400 text-emerald-500",
-    error: "border-red-400 text-red-500",
-  };
-
-  const label = statusLabel(status);
-
-  return (
-    <span className={`inline-flex h-11 items-center rounded-full border px-5 text-sm font-semibold ${palette[status]}`}>
-      {label}
-    </span>
-  );
-}
-
 function statusLabel(status: StreamStatus) {
   switch (status) {
     case "running":
@@ -882,6 +893,14 @@ function statusLabel(status: StreamStatus) {
     default:
       return "Idle";
   }
+}
+
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 function FieldGroup({
