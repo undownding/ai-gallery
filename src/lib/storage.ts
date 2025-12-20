@@ -156,6 +156,18 @@ export async function getBase64Image(key: string): Promise<string> {
     return getImage(key).then((arrayBuffer) => Buffer.from(arrayBuffer).toString("base64"));
 }
 
+export async function getImageStream(key: string): Promise<ReadableStream<Uint8Array>> {
+    const obj = await getCloudflareContext().env.r2.get(key);
+    if (!obj) {
+        throw new Error("Object not found");
+    }
+    const body = obj.body as ReadableStream<Uint8Array> | null;
+    if (!body) {
+        throw new Error("Object body is empty");
+    }
+    return body;
+}
+
 export async function getImage(key: string): Promise<ArrayBuffer> {
     const obj = await getCloudflareContext().env.r2.get(key);
     if (!obj) {
