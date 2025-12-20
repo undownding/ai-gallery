@@ -6,7 +6,7 @@ const encoder = new TextEncoder();
 
 export const ACCESS_TOKEN_COOKIE = "ai_gallery_access";
 export const REFRESH_TOKEN_COOKIE = "ai_gallery_refresh";
-export const ACCESS_TOKEN_TTL_SECONDS = 60 * 15;
+export const ACCESS_TOKEN_TTL_SECONDS = 60 * 90;
 export const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 14;
 
 type TokenKind = "access" | "refresh";
