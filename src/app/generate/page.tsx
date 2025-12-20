@@ -106,6 +106,11 @@ export default function GeneratePage() {
   const thinkScrollRef = useRef<HTMLDivElement | null>(null);
   const hasImageChunkRef = useRef(false);
 
+  const scrollToEnd = useCallback(() => {
+    if (!thinkScrollRef.current) return;
+    thinkScrollRef.current.scrollTop = thinkScrollRef.current.scrollHeight;
+  }, []);
+
   const resetStreamedNarration = useCallback(() => {
     setStreamedText("");
     setTypewriterSessionKey(nextTypewriterKey());
@@ -161,9 +166,8 @@ export default function GeneratePage() {
   }, [status]);
 
   useEffect(() => {
-    if (!thinkScrollRef.current) return;
-    thinkScrollRef.current.scrollTop = thinkScrollRef.current.scrollHeight;
-  }, [streamedText]);
+    scrollToEnd();
+  }, [streamedText, scrollToEnd]);
 
   useEffect(() => {
     let active = true;
@@ -686,12 +690,24 @@ export default function GeneratePage() {
                   </div>
                   <div
                     ref={thinkScrollRef}
-                    className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)]"
+                    className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)] thin-scrollbar"
                   >
                     {streamedText ? (
                       <StableMarkdownTypewriter
                         stableKey={typewriterSessionKey}
-                        motionProps={{ className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]" }}
+                        motionProps={
+                          {
+                            className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
+                            onAnimationComplete: () => {
+                              console.log("Typewriter finished");
+                            },
+                            characterVariants: {
+                              hidden: { opacity: 0 },
+                              visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
+                            },
+                            onCharacterAnimationComplete: scrollToEnd,
+                          }
+                        }
                       >
                         {streamedText}
                       </StableMarkdownTypewriter>

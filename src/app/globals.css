@@ -306,3 +306,33 @@ body {
 .detail-state--error {
 	color: #ff4d6d;
 }
+
+.thin-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 36, 66, 0.25) transparent;
+}
+
+.thin-scrollbar:hover {
+	scrollbar-color: rgba(255, 36, 66, 0.45) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+	width: 6px;
+	background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+	background: rgba(255, 36, 66, 0.35);
+	border-radius: 999px;
+	opacity: 0;
+	transition: opacity 150ms ease, background 150ms ease;
+}
+
+.thin-scrollbar:hover::-webkit-scrollbar-thumb {
+	opacity: 1;
+	background: rgba(255, 36, 66, 0.6);
+}
