@@ -1,4 +1,4 @@
-import {GenerateContentResponse, GoogleGenAI} from "@google/genai";
+import {GenerateContentResponse, GoogleGenAI, ThinkingLevel} from "@google/genai";
 import {getCloudflareContext} from "@opennextjs/cloudflare";
 import {getUploadInlineData} from "@/lib/storage";
 
@@ -40,6 +40,10 @@ export async function generateContent(
         contents,
         config: {
             responseModalities: ['TEXT', 'IMAGE'],
+            thinkingConfig: {
+                includeThoughts: true,
+                thinkingLevel: ThinkingLevel.HIGH,
+            },
             imageConfig: {
                 aspectRatio,
                 imageSize,
