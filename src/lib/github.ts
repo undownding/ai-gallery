@@ -31,7 +31,7 @@ export type GithubStateCookiePayload = {
 };
 
 export const GITHUB_STATE_COOKIE = "github_oauth_state";
-export const STATE_COOKIE_TTL_SECONDS = 60 * 5;
+export const STATE_COOKIE_TTL_SECONDS = 60 * 90;
 export const DEFAULT_POST_LOGIN_REDIRECT = "/generate";
 
 export async function getGithubAuthorizeUrl(origin: string, state: string, env?: GithubEnv) {
