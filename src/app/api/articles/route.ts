@@ -248,6 +248,38 @@ async function ensureUploadsOwnedByUser(
 }
 
 async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
+  const env = getCloudflareContext().env;
   const source = await getUploadInlineData(uploadId, user.id);
-  return uploadBase64Image(source.data, source.mimeType, user);
+  const imageBinding = env?.IMAGES;
+
+  if (!imageBinding) {
+    return uploadBase64Image(source.data, source.mimeType, user);
+  }
+
+  try {
+    const originalBuffer = Buffer.from(source.data, "base64");
+    const transformer = imageBinding.input(bufferToReadableStream(originalBuffer));
+    const transformation = await transformer
+      .transform({ width: 500, fit: "scale-down" })
+      .output({ format: "image/webp", quality: 80 });
+
+    const response = await transformation.response();
+    const resizedBuffer = Buffer.from(await response.arrayBuffer());
+    const resizedBase64 = resizedBuffer.toString("base64");
+    const mimeType = transformation.contentType() || "image/webp";
+
+    return uploadBase64Image(resizedBase64, mimeType, user);
+  } catch (error) {
+    console.error("Unable to transform thumbnail", error);
+    return uploadBase64Image(source.data, source.mimeType, user);
+  }
+}
+
+function bufferToReadableStream(buffer: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(buffer);
+      controller.close();
+    },
+  });
 }

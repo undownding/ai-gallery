@@ -155,9 +155,6 @@ export default function ArticleDetailPage({ params }: PageParams) {
               >
                 Back to feed
               </button>
-              <p className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-4 py-1 text-[10px] uppercase tracking-[0.4em] text-[var(--muted)]">
-                Inspiration capsule · Xiaohongshu layout
-              </p>
               <h1 className="text-[clamp(2.75rem,5vw,4.75rem)] font-serif leading-[1.08] text-[var(--foreground)]">
                 {article?.title ?? "Untitled story"}
               </h1>
