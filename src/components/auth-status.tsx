@@ -14,9 +14,16 @@ type SessionResponse = {
   user: SessionUser | null;
 };
 
+export const AUTH_SESSION_EVENT = "ai-gallery:session";
+
 type AuthStatusProps = {
   redirectTo: string;
 };
+
+function broadcastSession(user: SessionUser | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(AUTH_SESSION_EVENT, { detail: user }));
+}
 
 export function AuthStatus({ redirectTo }: AuthStatusProps) {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -34,7 +41,9 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
         }
         const payload = (await res.json()) as SessionResponse;
         if (active) {
-          setUser(payload.user);
+          const nextUser = payload?.user ?? null;
+          setUser(nextUser);
+          broadcastSession(nextUser);
         }
       } catch (sessionError) {
         if (active) {
@@ -66,6 +75,7 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
         throw new Error("Logout failed.");
       }
       setUser(null);
+      broadcastSession(null);
     } catch (logoutError) {
       setError(logoutError instanceof Error ? logoutError.message : "Logout failed");
     } finally {

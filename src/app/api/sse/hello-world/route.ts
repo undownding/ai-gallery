@@ -16,7 +16,7 @@ export async function GET(req: Request) {
           aborted = true;
           try {
             controller.close();
-          } catch (e) {
+          } catch {
             // ignore
           }
         });
