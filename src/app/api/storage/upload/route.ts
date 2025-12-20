@@ -9,22 +9,15 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: "Sign in to upload files." }, { status: 401 });
     }
 
-    let arrayBuffer: ArrayBuffer;
-
-    try {
-        arrayBuffer = await request.arrayBuffer();
-    } catch {
-        return NextResponse.json({ error: "Unable to read request body." }, { status: 400 });
-    }
-
-    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+    const bodyStream = request.body;
+    if (!bodyStream) {
         return NextResponse.json({ error: "Request body is empty." }, { status: 400 });
     }
 
     const mimeTypeHeader = request.headers.get("content-type");
 
     try {
-        const upload = await uploadImage(arrayBuffer, mimeTypeHeader ?? undefined, user);
+        const upload = await uploadImage(bodyStream, mimeTypeHeader ?? undefined, user);
         return NextResponse.json({ data: upload });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unexpected error";

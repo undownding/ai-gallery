@@ -30,6 +30,24 @@ type UploadOwner = {
     login: string;
 };
 
+type UploadInput = ArrayBuffer | Buffer | Uint8Array | ReadableStream<Uint8Array> | string;
+
+function isReadableStreamInput(data: UploadInput): data is ReadableStream<Uint8Array> {
+    return typeof ReadableStream !== "undefined" && data instanceof ReadableStream;
+}
+
+function isBufferInput(data: UploadInput): data is Buffer {
+    return typeof Buffer !== "undefined" && Buffer.isBuffer(data);
+}
+
+function isUint8ArrayInput(data: UploadInput): data is Uint8Array {
+    return data instanceof Uint8Array;
+}
+
+function isArrayBufferInput(data: UploadInput): data is ArrayBuffer {
+    return data instanceof ArrayBuffer;
+}
+
 function buildObjectKey(owner: UploadOwner) {
     const ext = TARGET_EXTENSION;
     const id = uuidv7();
@@ -46,8 +64,32 @@ function bufferToReadableStream(buffer: Uint8Array): ReadableStream<Uint8Array> 
     });
 }
 
-async function convertBufferToWebp(
-    buffer: Buffer,
+function inputToReadableStream(data: UploadInput): ReadableStream<Uint8Array> {
+    if (isReadableStreamInput(data)) {
+        return data;
+    }
+
+    if (typeof data === "string") {
+        return bufferToReadableStream(new TextEncoder().encode(data));
+    }
+
+    if (isBufferInput(data)) {
+        return bufferToReadableStream(new Uint8Array(data));
+    }
+
+    if (isUint8ArrayInput(data)) {
+        return bufferToReadableStream(data);
+    }
+
+    if (isArrayBufferInput(data)) {
+        return bufferToReadableStream(new Uint8Array(data));
+    }
+
+    throw new Error("Unsupported upload input type");
+}
+
+async function convertStreamToWebp(
+    source: ReadableStream<Uint8Array>,
     env: CloudflareEnv,
     isBase64: boolean,
 ): Promise<{ stream: ReadableStream<Uint8Array>; mimeType: string }> {
@@ -61,7 +103,7 @@ async function convertBufferToWebp(
         if (isBase64) {
             inputOptions.encoding = "base64";
         }
-        const transformer = imageBinding.input(bufferToReadableStream(buffer), inputOptions);
+        const transformer = imageBinding.input(source, inputOptions);
         const transformation = await transformer.output({ format: "image/webp", quality: 85 });
         const response = await transformation.response();
         const stream = response.body as ReadableStream<Uint8Array> | null;
@@ -85,14 +127,14 @@ async function persistUpload(env: CloudflareEnv, id: string, key: string, eTag: 
 }
 
 export async function uploadImage(
-    data: ArrayBuffer | Buffer,
+    data: UploadInput,
     _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
     isBase64: boolean = false,
 ): Promise<Upload> {
     const env = getCloudflareContext().env;
-    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    const { stream, mimeType } = await convertBufferToWebp(buffer, env, isBase64);
+    const sourceStream = inputToReadableStream(data);
+    const { stream, mimeType } = await convertStreamToWebp(sourceStream, env, isBase64);
     const { id, key } = buildObjectKey(owner);
 
     const obj = await env.r2.put(key, stream, {
@@ -107,7 +149,7 @@ export async function uploadBase64Image(
     _sourceMimeType: string = DEFAULT_MIME_TYPE,
     owner: UploadOwner,
 ): Promise<Upload> {
-    return uploadImage(Buffer.from(base64String), DEFAULT_MIME_TYPE, owner, true);
+    return uploadImage(base64String, DEFAULT_MIME_TYPE, owner, true);
 }
 
 export async function getBase64Image(key: string): Promise<string> {
