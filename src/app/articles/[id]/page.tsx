@@ -31,6 +31,8 @@ export default function ArticleDetailPage({ params }: PageParams) {
   const [titleError, setTitleError] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState<ArticleAsset | null>(null);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -68,6 +70,24 @@ export default function ArticleDetailPage({ params }: PageParams) {
       setTitleError(null);
     }
   }, [article?.title, article]);
+
+  useEffect(() => {
+    setIsPromptExpanded(false);
+    setPreviewAsset(null);
+  }, [article?.id]);
+
+  useEffect(() => {
+    if (!previewAsset) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPreviewAsset(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [previewAsset]);
 
   useEffect(() => {
     let active = true;
@@ -299,7 +319,7 @@ export default function ArticleDetailPage({ params }: PageParams) {
           </div>
         ) : article ? (
           <section className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <MediaShowcase assets={galleryAssets} title={article.title} />
+            <MediaShowcase assets={galleryAssets} title={article.title} onViewAsset={setPreviewAsset} />
             <div className="space-y-8 rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 shadow-soft">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <AuthorBadge author={article.author} createdAt={metadata.created} />
@@ -316,14 +336,24 @@ export default function ArticleDetailPage({ params }: PageParams) {
                 </h2>
                 <div
                   className={`relative text-base leading-relaxed text-[var(--foreground)] ${
-                    promptIsLong ? "max-h-72 overflow-hidden pr-4" : ""
+                    promptIsLong && !isPromptExpanded ? "max-h-72 overflow-hidden pr-4" : ""
                   }`}
                 >
                   <p>{article.text}</p>
-                  {promptIsLong && (
+                  {promptIsLong && !isPromptExpanded && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/80 to-transparent" />
                   )}
                 </div>
+                {promptIsLong && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPromptExpanded((prev) => !prev)}
+                    aria-expanded={isPromptExpanded}
+                    className="mt-2 text-xs font-semibold uppercase tracking-[0.35em] text-[var(--foreground)] transition hover:text-[var(--accent)]"
+                  >
+                    {isPromptExpanded ? "Collapse prompt" : "Read full prompt"}
+                  </button>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -363,6 +393,13 @@ export default function ArticleDetailPage({ params }: PageParams) {
             </div>
           </section>
         ) : null}
+        {previewAsset && (
+          <ImagePreviewModal
+            asset={previewAsset}
+            title={article?.title ?? "Story media"}
+            onClose={() => setPreviewAsset(null)}
+          />
+        )}
       </div>
     </div>
   );
@@ -377,7 +414,15 @@ function DetailStat({ label, value }: { label: string; value: string | number })
   );
 }
 
-function MediaShowcase({ assets, title }: { assets: ArticleAsset[]; title: string | null }) {
+function MediaShowcase({
+  assets,
+  title,
+  onViewAsset,
+}: {
+  assets: ArticleAsset[];
+  title: string | null;
+  onViewAsset?: (asset: ArticleAsset) => void;
+}) {
   const hasMedia = assets.length > 0;
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -448,11 +493,22 @@ function MediaShowcase({ assets, title }: { assets: ArticleAsset[]; title: strin
           if (!src) return null;
           return (
             <div key={asset.id} className="relative min-w-full snap-center px-2 py-1">
-              <img
-                src={src}
-                alt={title ?? "Article media"}
-                className="h-[520px] w-full rounded-[32px] object-cover"
-              />
+              <div className="relative flex h-[520px] w-full items-center justify-center rounded-[32px] bg-[var(--background)]/40">
+                <img
+                  src={src}
+                  alt={title ?? "Article media"}
+                  className="max-h-full w-full rounded-[32px] object-contain"
+                />
+                {onViewAsset && (
+                  <button
+                    type="button"
+                    onClick={() => onViewAsset(asset)}
+                    className="absolute bottom-6 right-8 rounded-full border border-white/40 bg-black/60 px-4 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-black/80"
+                  >
+                    查看大图
+                  </button>
+                )}
+              </div>
               <span className="absolute left-8 top-8 rounded-full bg-black/50 px-4 py-1 text-xs font-semibold text-white">
                 {index + 1} / {assets.length}
               </span>
@@ -479,6 +535,38 @@ function MediaShowcase({ assets, title }: { assets: ArticleAsset[]; title: strin
             →
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ImagePreviewModal({ asset, title, onClose }: { asset: ArticleAsset; title: string; onClose: () => void }) {
+  const src = resolveUploadUrl(asset.key);
+  if (!src) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-5xl rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/95 p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-6 top-6 rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          aria-label="Close image preview"
+        >
+          Close
+        </button>
+        <div className="flex items-center justify-center">
+          <img src={src} alt={title} className="max-h-[80vh] w-full object-contain" />
+        </div>
+        <p className="mt-4 text-center text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">{title}</p>
       </div>
     </div>
   );
