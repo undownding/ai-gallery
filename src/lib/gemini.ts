@@ -42,7 +42,6 @@ export async function generateContent(
             responseModalities: ['TEXT', 'IMAGE'],
             thinkingConfig: {
                 includeThoughts: true,
-                thinkingLevel: ThinkingLevel.HIGH,
             },
             imageConfig: {
                 aspectRatio,
