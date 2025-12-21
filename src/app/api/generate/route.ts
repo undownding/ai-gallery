@@ -150,10 +150,9 @@ function createGenerationStream(params: SanitizedGeneratePayload, user: SessionU
                 const summary: GenerationSummary = {
                     text: aggregatedText || null,
                     upload,
-                    response: upload ? null : lastChunk,
                 };
 
-                if (!summary.text && !summary.upload && !summary.response) {
+                if (!summary.text && !summary.upload) {
                     summary.text = "Generation completed with no output.";
                 }
 
