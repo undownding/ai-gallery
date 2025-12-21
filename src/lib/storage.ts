@@ -88,6 +88,34 @@ function inputToReadableStream(data: UploadInput): ReadableStream<Uint8Array> {
     throw new Error("Unsupported upload input type");
 }
 
+async function readableStreamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            break;
+        }
+        if (value) {
+            chunks.push(value);
+        }
+    }
+    if (chunks.length === 0) {
+        return "";
+    }
+    if (chunks.length === 1) {
+        return new TextDecoder().decode(chunks[0]);
+    }
+    const totalLength = chunks.reduce((size, chunk) => size + chunk.length, 0);
+    const combined = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+    }
+    return new TextDecoder().decode(combined);
+}
+
 async function convertStreamToWebp(
     source: ReadableStream<Uint8Array>,
     env: CloudflareEnv,
@@ -153,7 +181,12 @@ export async function uploadBase64Image(
 }
 
 export async function getBase64Image(key: string): Promise<string> {
-    return getImage(key).then((arrayBuffer) => Buffer.from(arrayBuffer).toString("base64"));
+    const imageBinding = getCloudflareContext().env.IMAGES!;
+    const stream = await getImageStream(key);
+    const transformer = imageBinding.input(stream);
+    const transformation = await transformer.output({ format: "image/webp" });
+    const base64Stream = transformation.image({ encoding: "base64" });
+    return readableStreamToString(base64Stream);
 }
 
 export async function getImageStream(key: string): Promise<ReadableStream<Uint8Array>> {
@@ -201,9 +234,9 @@ export async function getUploadInlineData(
         throw new Error(`Upload ${uploadId} not found`);
     }
 
-    if (userId && upload.userId !== userId) {
-        throw new Error("Upload not found");
-    }
+    // if (userId && upload.userId !== userId) {
+    //     throw new Error("Upload not found");
+    // }
 
     const data = await getBase64Image(upload.key);
     return {
