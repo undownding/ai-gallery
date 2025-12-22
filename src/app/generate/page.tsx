@@ -706,7 +706,8 @@ export default function GeneratePage() {
                   <button
                     type="button"
                     onClick={actionButtonHandler}
-                    disabled={actionButtonDisabled}
+                    // disabled={actionButtonDisabled}
+                    disabled={true}
                     className={actionButtonClasses}
                   >
                     {actionButtonLabel}
