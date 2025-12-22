@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
@@ -15,14 +15,11 @@ type ArticleAsset = ArticleAssetPayload;
 type UpdateMessage = { type: "success" | "error"; text: string } | null;
 type SessionResponse = { user: SessionUser | null };
 
-type PageParams = {
-  params: Promise<{
-    id: string;
-  }>;
-};
-
-export default function ArticleDetailPage({ params }: PageParams) {
-  const { article, setArticle, articleId, loading, error, reload } = useArticleDetail(params);
+export default function ArticleDetailPage() {
+  const searchParams = useSearchParams();
+  const requestedArticleId = searchParams.get("id");
+  const { article, setArticle, articleId, loading, error, reload } =
+    useArticleDetail(requestedArticleId);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<UpdateMessage>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -60,7 +57,8 @@ export default function ArticleDetailPage({ params }: PageParams) {
     [article],
   );
 
-  const redirectTarget = pathname ?? (articleId ? `/articles/${articleId}` : "/");
+  const redirectBase = pathname ?? "/article";
+  const redirectTarget = articleId ? `${redirectBase}?id=${articleId}` : redirectBase;
   const promptIsLong = (article?.text?.length ?? 0) > 320;
 
   useEffect(() => {
@@ -319,7 +317,11 @@ export default function ArticleDetailPage({ params }: PageParams) {
           </div>
         ) : article ? (
           <section className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <MediaShowcase assets={galleryAssets} title={article.title} onViewAsset={setPreviewAsset} />
+            <MediaShowcase
+              assets={galleryAssets}
+              title={article.title}
+              onViewAsset={setPreviewAsset}
+            />
             <div className="space-y-8 rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 shadow-soft">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <AuthorBadge author={article.author} createdAt={metadata.created} />
@@ -330,7 +332,9 @@ export default function ArticleDetailPage({ params }: PageParams) {
               </div>
 
               <div className="space-y-3">
-                <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">Prompt digest</p>
+                <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">
+                  Prompt digest
+                </p>
                 <h2 className="font-serif text-3xl leading-snug text-[var(--foreground)] sm:text-4xl">
                   {article.title ?? "Untitled concept"}
                 </h2>
@@ -357,7 +361,9 @@ export default function ArticleDetailPage({ params }: PageParams) {
               </div>
 
               <div className="space-y-3">
-                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Story controls</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
+                  Story controls
+                </p>
                 <div className="flex flex-wrap gap-3">
                   {canToggleVisibility ? (
                     <button
@@ -435,7 +441,9 @@ function MediaShowcase({
       if (!node) return;
       const width = node.clientWidth || 1;
       const next = Math.round(node.scrollLeft / width);
-      setActiveIndex((prev) => (next === prev ? prev : Math.max(0, Math.min(assets.length - 1, next))));
+      setActiveIndex((prev) =>
+        next === prev ? prev : Math.max(0, Math.min(assets.length - 1, next)),
+      );
     };
     node.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
@@ -448,14 +456,11 @@ function MediaShowcase({
     setActiveIndex((prev) => Math.min(prev, assets.length - 1));
   }, [assets.length, hasMedia]);
 
-  const scrollToIndex = useCallback(
-    (index: number) => {
-      if (!listRef.current) return;
-      const width = listRef.current.clientWidth;
-      listRef.current.scrollTo({ left: index * width, behavior: "smooth" });
-    },
-    [],
-  );
+  const scrollToIndex = useCallback((index: number) => {
+    if (!listRef.current) return;
+    const width = listRef.current.clientWidth;
+    listRef.current.scrollTo({ left: index * width, behavior: "smooth" });
+  }, []);
 
   const handleNavigate = useCallback(
     (direction: -1 | 1) => {
@@ -475,7 +480,9 @@ function MediaShowcase({
       <div className={`${baseClasses} flex min-h-[420px] items-center justify-center text-center`}>
         <div className="space-y-2">
           <p className="text-sm font-semibold text-[var(--foreground)]">No media added yet</p>
-          <p className="text-xs text-[var(--muted)]">Drop visuals here to open the horizontal showcase.</p>
+          <p className="text-xs text-[var(--muted)]">
+            Drop visuals here to open the horizontal showcase.
+          </p>
         </div>
       </div>
     );
@@ -518,7 +525,9 @@ function MediaShowcase({
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Swipe to explore · media set</p>
+        <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
+          Swipe to explore · media set
+        </p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -540,7 +549,15 @@ function MediaShowcase({
   );
 }
 
-function ImagePreviewModal({ asset, title, onClose }: { asset: ArticleAsset; title: string; onClose: () => void }) {
+function ImagePreviewModal({
+  asset,
+  title,
+  onClose,
+}: {
+  asset: ArticleAsset;
+  title: string;
+  onClose: () => void;
+}) {
   const src = resolveUploadUrl(asset.key);
   if (!src) return null;
 
@@ -566,7 +583,9 @@ function ImagePreviewModal({ asset, title, onClose }: { asset: ArticleAsset; tit
         <div className="flex items-center justify-center">
           <img src={src} alt={title} className="max-h-[80vh] w-full object-contain" />
         </div>
-        <p className="mt-4 text-center text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">{title}</p>
+        <p className="mt-4 text-center text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">
+          {title}
+        </p>
       </div>
     </div>
   );
@@ -615,7 +634,11 @@ function AuthorBadge({
     <div className="flex items-center gap-4">
       <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--background)]">
         {author?.avatarUrl ? (
-          <img src={author.avatarUrl} alt={author.name ?? author.login} className="h-full w-full object-cover" />
+          <img
+            src={author.avatarUrl}
+            alt={author.name ?? author.login}
+            className="h-full w-full object-cover"
+          />
         ) : (
           <span className="text-xl font-semibold text-[var(--foreground)]">{initials}</span>
         )}
@@ -625,7 +648,9 @@ function AuthorBadge({
         <p className="text-lg font-semibold text-[var(--foreground)]">
           {author?.name ?? author?.login ?? "Anonymous creator"}
         </p>
-        <p className="text-xs text-[var(--muted)]">@{author?.login ?? "unknown"} · {createdAt}</p>
+        <p className="text-xs text-[var(--muted)]">
+          @{author?.login ?? "unknown"} · {createdAt}
+        </p>
       </div>
     </div>
   );
@@ -633,9 +658,11 @@ function AuthorBadge({
 
 function formatDate(value: string) {
   try {
-    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(
-      new Date(value),
-    );
+    return new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(value));
   } catch {
     return value;
   }

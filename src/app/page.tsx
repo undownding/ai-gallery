@@ -142,13 +142,14 @@ export default function Home() {
   }, [articles]);
 
   const totalShots = useMemo(
-    () => articles.reduce((sum, item) => sum + (item.media.length || (item.thumbnailImage ? 1 : 0)), 0),
+    () =>
+      articles.reduce((sum, item) => sum + (item.media.length || (item.thumbnailImage ? 1 : 0)), 0),
     [articles],
   );
 
   const handleCardSelect = useCallback(
     (articleId: string) => {
-      router.push(`/articles/${articleId}`);
+      router.push(`/article?id=${articleId}`);
     },
     [router],
   );
@@ -259,7 +260,9 @@ function ArticleCard({
         <span className="card-chip">{formatDate(article.createdAt)}</span>
       </div>
       <div className="flex flex-col gap-2 text-left">
-        <h3 className="text-base font-semibold text-[var(--foreground)]">{article.title ?? "Untitled story"}</h3>
+        <h3 className="text-base font-semibold text-[var(--foreground)]">
+          {article.title ?? "Untitled story"}
+        </h3>
         <p className="line-clamp-3 text-sm text-[var(--muted)]">{article.text}</p>
         <div className="flex items-center justify-between text-xs text-[var(--muted)]">
           <span>{formatShots(article)}</span>

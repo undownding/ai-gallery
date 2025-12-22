@@ -84,7 +84,9 @@ export default function GeneratePage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showRenderOptions, setShowRenderOptions] = useState(false);
-  const [articleCreationState, setArticleCreationState] = useState<ArticleCreationState>({ status: "idle" });
+  const [articleCreationState, setArticleCreationState] = useState<ArticleCreationState>({
+    status: "idle",
+  });
   const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
   const [submittedReferenceIds, setSubmittedReferenceIds] = useState<string[]>([]);
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
@@ -192,7 +194,9 @@ export default function GeneratePage() {
         applySession(payload.user ?? null);
       } catch (sessionIssue) {
         if (!active) return;
-        setSessionError(sessionIssue instanceof Error ? sessionIssue.message : "Unable to load session.");
+        setSessionError(
+          sessionIssue instanceof Error ? sessionIssue.message : "Unable to load session.",
+        );
         applySession(null);
       }
     };
@@ -312,21 +316,12 @@ export default function GeneratePage() {
         articlePersistControllerRef.current = null;
       }
     }
-  }, [
-    status,
-    submittedPrompt,
-    mediaUploadIds,
-    submittedReferenceIds,
-    sessionUser,
-    creationStatus,
-  ]);
+  }, [status, submittedPrompt, mediaUploadIds, submittedReferenceIds, sessionUser, creationStatus]);
 
   useEffect(() => {
     if (status !== "success") return;
     void persistArticleDraft();
   }, [status, persistArticleDraft]);
-
-  
 
   useEffect(() => {
     if (creationStatus !== "success" || !createdArticleId) {
@@ -344,7 +339,7 @@ export default function GeneratePage() {
     }, 1000);
 
     redirectTimerRef.current = setTimeout(() => {
-      router.push(`/articles/${createdArticleId}`);
+      router.push(`/article?id=${createdArticleId}`);
     }, 5000);
 
     return () => {
@@ -355,56 +350,61 @@ export default function GeneratePage() {
   const handleImmediateRedirect = useCallback(() => {
     if (!createdArticleId) return;
     clearRedirectTimers();
-    router.push(`/articles/${createdArticleId}`);
+    router.push(`/article?id=${createdArticleId}`);
   }, [createdArticleId, clearRedirectTimers, router]);
 
   const retryArticleSave = useCallback(() => {
     setArticleCreationState({ status: "idle" });
   }, []);
 
-  const handleFileSelection = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (!files.length) return;
-    if (referenceUploads.length >= MAX_REFERENCES) return;
+  const handleFileSelection = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files ?? []);
+      if (!files.length) return;
+      if (referenceUploads.length >= MAX_REFERENCES) return;
 
-    setUploadingFiles(true);
-    setErrorMessage(null);
+      setUploadingFiles(true);
+      setErrorMessage(null);
 
-    try {
-      const capacity = MAX_REFERENCES - referenceUploads.length;
-      const trimmedFiles = files.slice(0, capacity);
-      for (const file of trimmedFiles) {
-        const res = await fetch("/api/storage/upload", {
-          method: "PUT",
-          headers: {
-            "content-type": file.type || "application/octet-stream",
-          },
-          body: file,
-          credentials: "include",
-        });
+      try {
+        const capacity = MAX_REFERENCES - referenceUploads.length;
+        const trimmedFiles = files.slice(0, capacity);
+        for (const file of trimmedFiles) {
+          const res = await fetch("/api/storage/upload", {
+            method: "PUT",
+            headers: {
+              "content-type": file.type || "application/octet-stream",
+            },
+            body: file,
+            credentials: "include",
+          });
 
-        if (!res.ok) {
-          const message = await safeReadError(res);
-          throw new Error(message || "Upload failed. Try again.");
+          if (!res.ok) {
+            const message = await safeReadError(res);
+            throw new Error(message || "Upload failed. Try again.");
+          }
+
+          const payload = (await res.json()) as { data?: UploadRecord };
+          const upload = payload?.data;
+          if (upload?.id && upload.key) {
+            const previewUrl = URL.createObjectURL(file);
+            previewUrlRegistry.current.add(previewUrl);
+            setReferenceUploads((prev) => [...prev, { ...upload, previewUrl }]);
+          }
         }
-
-        const payload = (await res.json()) as { data?: UploadRecord };
-        const upload = payload?.data;
-        if (upload?.id && upload.key) {
-          const previewUrl = URL.createObjectURL(file);
-          previewUrlRegistry.current.add(previewUrl);
-          setReferenceUploads((prev) => [...prev, { ...upload, previewUrl }]);
+      } catch (uploadError) {
+        setErrorMessage(
+          uploadError instanceof Error ? uploadError.message : "Unable to upload file.",
+        );
+      } finally {
+        setUploadingFiles(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
         }
       }
-    } catch (uploadError) {
-      setErrorMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload file.");
-    } finally {
-      setUploadingFiles(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  }, [referenceUploads.length]);
+    },
+    [referenceUploads.length],
+  );
 
   const removeReference = useCallback((uploadId: string) => {
     setReferenceUploads((prev) => {
@@ -461,7 +461,9 @@ export default function GeneratePage() {
       }
       case "done": {
         const payload = packet.data as DoneEventPayload;
-        const uploadRecord = isUploadRecord(payload?.upload) ? (payload?.upload as UploadRecord) : null;
+        const uploadRecord = isUploadRecord(payload?.upload)
+          ? (payload?.upload as UploadRecord)
+          : null;
         if (uploadRecord) {
           hasImageChunkRef.current = true;
           setPreviewUpload(uploadRecord);
@@ -479,9 +481,10 @@ export default function GeneratePage() {
         break;
       }
       case "error": {
-        const message = typeof (packet.data as { message?: string })?.message === "string"
-          ? (packet.data as { message?: string }).message!
-          : "Generation failed.";
+        const message =
+          typeof (packet.data as { message?: string })?.message === "string"
+            ? (packet.data as { message?: string }).message!
+            : "Generation failed.";
         setErrorMessage(message);
         setStatus("error");
         break;
@@ -524,7 +527,9 @@ export default function GeneratePage() {
     try {
       const stream = await openGenerationStream(body, controller.signal);
       await consumeStream(stream, handleEvent);
-      setStatus((current) => (current === "running" && hasImageChunkRef.current ? "success" : current));
+      setStatus((current) =>
+        current === "running" && hasImageChunkRef.current ? "success" : current,
+      );
     } catch (error) {
       if ((error as DOMException)?.name === "AbortError") {
         return;
@@ -534,7 +539,16 @@ export default function GeneratePage() {
     } finally {
       controllerRef.current = null;
     }
-  }, [prompt, aspectRatio, imageSize, referenceUploads, handleEvent, sessionUser, clearRedirectTimers, resetStreamedNarration]);
+  }, [
+    prompt,
+    aspectRatio,
+    imageSize,
+    referenceUploads,
+    handleEvent,
+    sessionUser,
+    clearRedirectTimers,
+    resetStreamedNarration,
+  ]);
 
   const actionButtonLabel = status === "running" ? "STOP" : "Generte Shot";
   const actionButtonHandler = status === "running" ? stopGeneration : handleGenerate;
@@ -559,11 +573,16 @@ export default function GeneratePage() {
             </div>
             <div className="relative z-10 flex flex-col gap-8 pt-16 sm:pt-20">
               <div className="space-y-3 max-w-3xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">Playground</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
+                  Playground
+                </p>
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-semibold sm:text-4xl">Craft bespoke shots in seconds</h1>
+                  <h1 className="text-3xl font-semibold sm:text-4xl">
+                    Craft bespoke shots in seconds
+                  </h1>
                   <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-                    Feed the Gemini image preview model with a cinematic brief, weave in references, and let the stream narrate each render hand-off.
+                    Feed the Gemini image preview model with a cinematic brief, weave in references,
+                    and let the stream narrate each render hand-off.
                   </p>
                 </div>
               </div>
@@ -578,7 +597,8 @@ export default function GeneratePage() {
             <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-10 text-center shadow-soft">
               <h2 className="text-2xl font-semibold">Sign in to start generating</h2>
               <p className="mt-3 text-sm text-[var(--muted)]">
-                Use your GitHub account to unlock the Gemini playground and persist reference uploads.
+                Use your GitHub account to unlock the Gemini playground and persist reference
+                uploads.
               </p>
               <a
                 href={loginHref}
@@ -597,7 +617,9 @@ export default function GeneratePage() {
                 >
                   <div className="rounded-[30px] border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm text-[var(--muted)]">PNG, JPG, or WEBP · {referenceUploads.length}/{MAX_REFERENCES} linked</p>
+                      <p className="text-sm text-[var(--muted)]">
+                        PNG, JPG, or WEBP · {referenceUploads.length}/{MAX_REFERENCES} linked
+                      </p>
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
                         <input
                           ref={fileInputRef}
@@ -623,7 +645,11 @@ export default function GeneratePage() {
                             >
                               {preview ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={preview} alt="Reference upload" className="h-full w-full object-cover" />
+                                <img
+                                  src={preview}
+                                  alt="Reference upload"
+                                  className="h-full w-full object-cover"
+                                />
                               ) : (
                                 <div className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--muted)]">
                                   Configure NEXT_PUBLIC_R2_PUBLIC_URL to preview stored keys.
@@ -642,7 +668,8 @@ export default function GeneratePage() {
 
                         {!referenceUploads.length && (
                           <div className="flex h-48 w-full min-w-[16rem] shrink-0 items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)]/40 p-6 text-center text-sm text-[var(--muted)]">
-                            Drop in moodboards, sketches, or photographic anchors to steer Gemini closer to your brand aesthetic.
+                            Drop in moodboards, sketches, or photographic anchors to steer Gemini
+                            closer to your brand aesthetic.
                           </div>
                         )}
                       </div>
@@ -650,7 +677,10 @@ export default function GeneratePage() {
                   </div>
                 </FieldGroup>
 
-                <FieldGroup label="Prompt" description="Describe mood, composition, and stylistic cues. This text is required.">
+                <FieldGroup
+                  label="Prompt"
+                  description="Describe mood, composition, and stylistic cues. This text is required."
+                >
                   <textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
@@ -667,7 +697,9 @@ export default function GeneratePage() {
                     className="inline-flex flex-1 min-w-[240px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 py-3 text-left text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:flex-none"
                   >
                     <div className="flex flex-col leading-tight">
-                      <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">Options</span>
+                      <span className="text-[0.6rem] uppercase tracking-[0.35em] text-[var(--muted)]">
+                        Options
+                      </span>
                       <span className="text-sm font-semibold">{renderOptionsLabel}</span>
                     </div>
                   </button>
@@ -686,7 +718,9 @@ export default function GeneratePage() {
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold">Think</h2>
-                    <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">{statusLabel(status)}</span>
+                    <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
+                      {statusLabel(status)}
+                    </span>
                   </div>
                   <div
                     ref={thinkScrollRef}
@@ -695,19 +729,17 @@ export default function GeneratePage() {
                     {streamedText ? (
                       <StableMarkdownTypewriter
                         stableKey={typewriterSessionKey}
-                        motionProps={
-                          {
-                            className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
-                            onAnimationComplete: () => {
-                              console.log("Typewriter finished");
-                            },
-                            characterVariants: {
-                              hidden: { opacity: 0 },
-                              visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
-                            },
-                            onCharacterAnimationComplete: scrollToEnd,
-                          }
-                        }
+                        motionProps={{
+                          className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
+                          onAnimationComplete: () => {
+                            console.log("Typewriter finished");
+                          },
+                          characterVariants: {
+                            hidden: { opacity: 0 },
+                            visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
+                          },
+                          onCharacterAnimationComplete: scrollToEnd,
+                        }}
                       >
                         {streamedText}
                       </StableMarkdownTypewriter>
@@ -733,7 +765,9 @@ export default function GeneratePage() {
                       </div>
                     ) : (
                       <div className="flex h-64 flex-col items-center justify-center rounded-[28px] border border-dashed border-[var(--border)] bg-[var(--surface)]/60 text-center text-sm text-[var(--muted)]">
-                        {status === "running" ? "Awaiting first image chunk..." : "Run a prompt to see the rendered asset."}
+                        {status === "running"
+                          ? "Awaiting first image chunk..."
+                          : "Run a prompt to see the rendered asset."}
                       </div>
                     )}
                     {previewUpload?.createdAt && (
@@ -749,11 +783,15 @@ export default function GeneratePage() {
                   <div className="mt-4 space-y-3 text-sm">
                     <div className="flex items-center justify-between border-b border-dashed border-[var(--border)] pb-3">
                       <span className="text-[var(--muted)]">Duration</span>
-                      <span className="font-semibold text-[var(--foreground)]">{formatDuration(generationDuration)}</span>
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {formatDuration(generationDuration)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">Status</span>
-                      <span className="font-semibold text-[var(--foreground)]">{statusLabel(status)}</span>
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {statusLabel(status)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">Resolution</span>
@@ -765,7 +803,9 @@ export default function GeneratePage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--muted)]">References</span>
-                      <span className="font-semibold">{referenceUploads.length}/{MAX_REFERENCES}</span>
+                      <span className="font-semibold">
+                        {referenceUploads.length}/{MAX_REFERENCES}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -775,13 +815,17 @@ export default function GeneratePage() {
                     <h2 className="text-lg font-semibold">Story draft</h2>
                     {creationStatus === "pending" && (
                       <p className="mt-3 text-sm text-[var(--muted)]">
-                        Saving this render with {mediaUploadIds.length} shot{mediaUploadIds.length === 1 ? "" : "s"} and {submittedReferenceIds.length} reference{submittedReferenceIds.length === 1 ? "" : "s"}.
+                        Saving this render with {mediaUploadIds.length} shot
+                        {mediaUploadIds.length === 1 ? "" : "s"} and {submittedReferenceIds.length}{" "}
+                        reference{submittedReferenceIds.length === 1 ? "" : "s"}.
                       </p>
                     )}
                     {creationStatus === "success" && (
                       <>
                         <p className="mt-3 text-sm text-[var(--muted)]">
-                          Draft saved. Redirecting to the detail view in {redirectCountdown ?? 5} second{(redirectCountdown ?? 5) === 1 ? "" : "s"} to decide whether to publish.
+                          Draft saved. Redirecting to the detail view in {redirectCountdown ?? 5}{" "}
+                          second{(redirectCountdown ?? 5) === 1 ? "" : "s"} to decide whether to
+                          publish.
                         </p>
                         <button
                           type="button"
@@ -842,8 +886,12 @@ export default function GeneratePage() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Render options</p>
-                <h2 id="render-options-heading" className="text-2xl font-semibold">Fine-tune the frame</h2>
+                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
+                  Render options
+                </p>
+                <h2 id="render-options-heading" className="text-2xl font-semibold">
+                  Fine-tune the frame
+                </h2>
               </div>
               <button
                 type="button"
@@ -855,7 +903,10 @@ export default function GeneratePage() {
             </div>
 
             <div className="mt-6 space-y-6">
-              <FieldGroup label="Framing" description="Pick an aspect ratio preset. Leave empty for model default.">
+              <FieldGroup
+                label="Framing"
+                description="Pick an aspect ratio preset. Leave empty for model default."
+              >
                 <div className="grid gap-3 sm:grid-cols-2">
                   {aspectRatioPresets.map((preset) => {
                     const active = aspectRatio === preset.value;
@@ -863,18 +914,25 @@ export default function GeneratePage() {
                       <button
                         key={preset.value}
                         type="button"
-                        onClick={() => setAspectRatio((prev) => (prev === preset.value ? "" : preset.value))}
+                        onClick={() =>
+                          setAspectRatio((prev) => (prev === preset.value ? "" : preset.value))
+                        }
                         className={`flex flex-col rounded-3xl border px-4 py-3 text-left transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[var(--surface)]/80 hover:border-[var(--accent)]"}`}
                       >
                         <span className="text-sm font-semibold">{preset.label}</span>
-                        <span className="text-xs text-[var(--muted)]">{preset.value} · {preset.hint}</span>
+                        <span className="text-xs text-[var(--muted)]">
+                          {preset.value} · {preset.hint}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
               </FieldGroup>
 
-              <FieldGroup label="Resolution" description="Higher targets stream larger inline images.">
+              <FieldGroup
+                label="Resolution"
+                description="Higher targets stream larger inline images."
+              >
                 <div className="flex flex-wrap gap-3">
                   {resolutionPresets.map((preset) => {
                     const active = imageSize === preset.value;
@@ -882,11 +940,15 @@ export default function GeneratePage() {
                       <button
                         key={preset.value}
                         type="button"
-                        onClick={() => setImageSize((prev) => (prev === preset.value ? "" : preset.value))}
+                        onClick={() =>
+                          setImageSize((prev) => (prev === preset.value ? "" : preset.value))
+                        }
                         className={`rounded-full border px-5 py-2 text-sm font-semibold transition ${active ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[var(--surface)]/80 hover:border-[var(--accent)]"}`}
                       >
                         {preset.label}
-                        <span className="ml-2 text-xs font-normal text-[var(--muted)]">{preset.hint}</span>
+                        <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                          {preset.hint}
+                        </span>
                       </button>
                     );
                   })}
@@ -990,7 +1052,10 @@ async function openGenerationStream(payload: GenerationRequestPayload, signal: A
   return response.body;
 }
 
-async function consumeStream(stream: ReadableStream<Uint8Array>, onEvent: (packet: ParsedEvent) => void) {
+async function consumeStream(
+  stream: ReadableStream<Uint8Array>,
+  onEvent: (packet: ParsedEvent) => void,
+) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   const delimiterPattern = /\r?\n\r?\n/;
