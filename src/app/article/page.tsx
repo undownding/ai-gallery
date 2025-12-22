@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
@@ -16,6 +16,14 @@ type UpdateMessage = { type: "success" | "error"; text: string } | null;
 type SessionResponse = { user: SessionUser | null };
 
 export default function ArticleDetailPage() {
+  return (
+    <Suspense fallback={<ArticlePageFallback />}>
+      <ArticleDetailPageContent />
+    </Suspense>
+  );
+}
+
+function ArticleDetailPageContent() {
   const searchParams = useSearchParams();
   const requestedArticleId = searchParams.get("id");
   const { article, setArticle, articleId, loading, error, reload } =
@@ -406,6 +414,16 @@ export default function ArticleDetailPage() {
             onClose={() => setPreviewAsset(null)}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+function ArticlePageFallback() {
+  return (
+    <div className="app-shell px-4 pb-20 pt-10 sm:px-6 lg:px-12">
+      <div className="mx-auto w-full max-w-4xl rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 text-center text-sm text-[var(--muted)]">
+        Loading story…
       </div>
     </div>
   );
