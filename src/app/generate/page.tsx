@@ -446,13 +446,15 @@ export default function GeneratePage() {
         const capacity = MAX_REFERENCES - referenceUploads.length;
         const trimmedFiles = files.slice(0, capacity);
         for (const file of trimmedFiles) {
+          const form = new FormData();
+          form.append("file", file);
+
           const res = await fetch(uploadUrl, {
             method: "PUT",
             headers: {
-              "content-type": file.type || "application/octet-stream",
               Authorization: `Bearer ${accessToken}`,
             },
-            body: file,
+            body: form,
             credentials: "include",
           });
 
