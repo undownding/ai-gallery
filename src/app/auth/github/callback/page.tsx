@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -26,6 +26,14 @@ type StatusCopy = {
 };
 
 export default function GithubCallbackPage() {
+  return (
+    <Suspense fallback={<GithubCallbackFallback />}>
+      <GithubCallbackContent />
+    </Suspense>
+  );
+}
+
+function GithubCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -257,6 +265,20 @@ export default function GithubCallbackPage() {
             Back to home
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function GithubCallbackFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-16">
+      <div className="w-full max-w-lg rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/95 p-10 text-center shadow-soft">
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
+          GitHub OAuth
+        </p>
+        <h1 className="mt-4 text-3xl font-semibold text-[var(--foreground)]">Processing sign-in</h1>
+        <p className="mt-3 text-sm text-[var(--muted)]">Preparing the callback flow…</p>
       </div>
     </div>
   );
