@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { buildArticlesApiUrl, safeReadError } from "@/lib/http";
+import { buildApiUrl, safeReadError } from "@/lib/http";
 import type { ArticleDetail } from "@/types/articles";
 
 const MISSING_ID_ERROR = "Missing article id. Append '?id=<articleId>' to the URL.";
@@ -24,7 +24,7 @@ export function useArticleDetail(articleId: string | null) {
     setError(null);
 
     try {
-      const response = await fetch(buildArticlesApiUrl(`/articles/${articleId}`), {
+      const response = await fetch(buildApiUrl(`/articles/${articleId}`), {
         cache: "no-store",
         credentials: "include",
       });

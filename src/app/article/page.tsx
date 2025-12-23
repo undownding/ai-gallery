@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { useArticleDetail, extractArticleDetail } from "@/hooks/use-article-detail";
-import { buildArticlesApiUrl, safeReadError } from "@/lib/http";
+import { buildApiUrl, safeReadError } from "@/lib/http";
 import { resolveUploadUrl } from "@/lib/uploads-client";
 import type { ArticleAsset as ArticleAssetModel, ArticleDetail } from "@/types/articles";
 
@@ -147,7 +147,7 @@ function ArticleDetailPageContent() {
     setUpdatingVisibility(true);
     setUpdateMessage(null);
     try {
-      const response = await fetch(buildArticlesApiUrl(`/articles/${article.id}`), {
+      const response = await fetch(buildApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -200,7 +200,7 @@ function ArticleDetailPageContent() {
     setSavingTitle(true);
     setTitleError(null);
     try {
-      const response = await fetch(buildArticlesApiUrl(`/articles/${article.id}`), {
+      const response = await fetch(buildApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

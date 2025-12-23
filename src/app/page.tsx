@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
+ 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,7 +8,7 @@ import { ArticleCard, formatDate } from "@/components/article-card";
 import { AuthStatus, AUTH_SESSION_EVENT } from "@/components/auth-status";
 import type { SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
-import { buildArticlesApiUrl } from "@/lib/http";
+import { buildApiUrl } from "@/lib/http";
 import type { ArticleRecord } from "@/types/articles";
 
 type ArticlesResponse = {
@@ -47,7 +47,7 @@ export default function Home() {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("afterId", cursor);
       const query = params.toString();
-      const url = `${buildArticlesApiUrl("/articles")}${query ? `?${query}` : ""}`;
+      const url = `${buildApiUrl("/articles")}${query ? `?${query}` : ""}`;
       const response = await fetch(url, { cache: "no-store", credentials: "include" });
       if (!response.ok) throw new Error("Feed is cooling down. Try again shortly.");
       const payload: ArticlesResponse = await response.json();

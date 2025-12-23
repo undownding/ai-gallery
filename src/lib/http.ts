@@ -1,6 +1,6 @@
 const ARTICLES_API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
-export function buildArticlesApiUrl(path: string) {
+export function buildApiUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   if (!ARTICLES_API_BASE) {
     return normalizedPath;
