@@ -14,10 +14,12 @@ import {
   buildGithubAuthorizeUrl,
   fetchCurrentUser,
   getStoredSessionUser,
+  getValidAccessToken,
   sanitizeRedirectPath,
   type AuthMessagePayload,
   type SessionUser,
 } from "@/lib/client-session";
+import { buildApiUrl } from "@/lib/http";
 
 const MAX_REFERENCES = 8;
 const nextTypewriterKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -338,9 +340,17 @@ export default function GeneratePage() {
     articlePersistControllerRef.current = controller;
 
     try {
-      const response = await fetch("/api/articles", {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        throw new Error("Session expired. Please sign in again.");
+      }
+
+      const response = await fetch(buildApiUrl("/article"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           text: submittedPrompt,
           media: mediaUploadIds,
@@ -426,13 +436,20 @@ export default function GeneratePage() {
       setErrorMessage(null);
 
       try {
+        const accessToken = await getValidAccessToken();
+        if (!accessToken) {
+          throw new Error("Session expired. Please sign in again.");
+        }
+        const uploadUrl = buildApiUrl("/upload/image");
+
         const capacity = MAX_REFERENCES - referenceUploads.length;
         const trimmedFiles = files.slice(0, capacity);
         for (const file of trimmedFiles) {
-          const res = await fetch("/api/storage/upload", {
+          const res = await fetch(uploadUrl, {
             method: "PUT",
             headers: {
               "content-type": file.type || "application/octet-stream",
+              Authorization: `Bearer ${accessToken}`,
             },
             body: file,
             credentials: "include",
