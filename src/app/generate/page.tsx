@@ -578,6 +578,13 @@ export default function GeneratePage() {
       return;
     }
 
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) {
+      setErrorMessage("Session expired. Please sign in again.");
+      setStatus("error");
+      return;
+    }
+
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -601,7 +608,7 @@ export default function GeneratePage() {
     };
 
     try {
-      const stream = await openGenerationStream(body, controller.signal);
+      const stream = await openGenerationStream(body, controller.signal, accessToken);
       await consumeStream(stream, handleEvent);
       setStatus((current) =>
         current === "running" && hasImageChunkRef.current ? "success" : current,
@@ -784,8 +791,7 @@ export default function GeneratePage() {
                   <button
                     type="button"
                     onClick={actionButtonHandler}
-                    // disabled={actionButtonDisabled}
-                    disabled={true}
+                    disabled={actionButtonDisabled}
                     className={actionButtonClasses}
                   >
                     {actionButtonLabel}
@@ -1106,29 +1112,56 @@ function isUploadRecord(value: unknown): value is UploadRecord {
   return "id" in value && "key" in value;
 }
 
-async function openGenerationStream(payload: GenerationRequestPayload, signal: AbortSignal) {
-  const response = await fetch("/api/generate", {
+async function openGenerationStream(
+  payload: GenerationRequestPayload,
+  signal: AbortSignal,
+  accessToken: string,
+) {
+  const taskResponse = await fetch(buildApiUrl("/task/gemini"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Accept: "text/event-stream",
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
+    signal,
+    cache: "no-store",
+    credentials: "include",
+  });
+
+  if (!taskResponse.ok) {
+    const message = await safeReadError(taskResponse);
+    throw new Error(message || "Unable to create generation task.");
+  }
+
+  const taskPayload = (await taskResponse.json()) as { taskId?: string };
+  const taskId = taskPayload?.taskId;
+  if (!taskId) {
+    throw new Error("Task id is missing in the response.");
+  }
+
+  const streamResponse = await fetch(buildApiUrl(`/task/gemini/${taskId}/sse`), {
+    method: "GET",
+    headers: {
+      Accept: "text/event-stream",
+      Authorization: `Bearer ${accessToken}`,
+    },
     signal,
     cache: "no-store",
     redirect: "follow",
     credentials: "include",
   });
 
-  if (!response.ok || !response.body) {
-    const message = await safeReadError(response);
-    if (response.redirected && !response.body) {
+  if (!streamResponse.ok || !streamResponse.body) {
+    const message = await safeReadError(streamResponse);
+    if (streamResponse.redirected && !streamResponse.body) {
       throw new Error(message || "Stream redirect succeeded but no body was returned.");
     }
     throw new Error(message || "Unable to start the generation stream.");
   }
 
-  return response.body;
+  return streamResponse.body;
 }
 
 async function consumeStream(
