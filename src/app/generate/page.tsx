@@ -353,7 +353,7 @@ export default function GeneratePage() {
         },
         body: JSON.stringify({
           text: submittedPrompt,
-          media: mediaUploadIds,
+          mediaId: mediaUploadIds,
           sourcesId: submittedReferenceIds,
         }),
         signal: controller.signal,

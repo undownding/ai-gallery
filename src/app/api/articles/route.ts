@@ -2,11 +2,17 @@ import { and, desc, eq, inArray, lt, type SQL } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db/client";
-import { articleMediaAssets, articleSourceAssets, articleThumbnailImages, articles, uploads } from "@/db/schema";
+import {
+  articleMediaAssets,
+  articleSourceAssets,
+  articleThumbnailImages,
+  articles,
+  uploads,
+} from "@/db/schema";
 import { serializeArticle, type ArticleResponsePayload } from "@/lib/articles";
 import { getSessionUser, type SessionUser } from "@/lib/session";
 import { getImageStream, getUploadById, uploadImage } from "@/lib/storage";
-import { getCloudflareContext } from "@opennextjs/cloudflare"
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
@@ -15,7 +21,6 @@ const MAX_SOURCE_UPLOADS = 8;
 const THUMBNAIL_TARGET_EDGE = 500;
 
 export async function GET(request: NextRequest) {
-
   const searchParams = request.nextUrl.searchParams;
   const afterId = searchParams.get("afterId");
   const pageSize = clampPageSize(searchParams.get("limit"));
@@ -26,19 +31,19 @@ export async function GET(request: NextRequest) {
     visibilityFilter = and(visibilityFilter, lt(articles.id, afterId));
   }
 
-    const rows = await db.query.articles.findMany({
-        where: visibilityFilter,
-        orderBy: [desc(articles.id)],
-        limit: pageSize,
-        with: {
-            thumbnailImage: {
-                with: { upload: true },
-            },
-            media: {
-                with: { upload: true },
-            },
-        },
-    })
+  const rows = await db.query.articles.findMany({
+    where: visibilityFilter,
+    orderBy: [desc(articles.id)],
+    limit: pageSize,
+    with: {
+      thumbnailImage: {
+        with: { upload: true },
+      },
+      media: {
+        with: { upload: true },
+      },
+    },
+  });
 
   const data: ArticleResponsePayload[] = rows.map((article) => serializeArticle(article));
 
@@ -56,7 +61,7 @@ export async function GET(request: NextRequest) {
 type CreateArticleBody = {
   text?: string;
   title?: string;
-  media?: Array<string | { id?: string | null }>;
+  mediaId?: string[];
   sourcesId?: Array<string | null>;
 };
 
@@ -110,7 +115,10 @@ export async function POST(request: NextRequest) {
     articleId = created.id;
 
     const insertOperations: Promise<unknown>[] = [
-      db.insert(articleThumbnailImages).values({ articleId: created.id, uploadId: thumbnailUpload.id }).run(),
+      db
+        .insert(articleThumbnailImages)
+        .values({ articleId: created.id, uploadId: thumbnailUpload.id })
+        .run(),
     ];
 
     if (mediaUploadIds.length) {
@@ -149,15 +157,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Article not found after creation." }, { status: 500 });
   }
 
-  return NextResponse.json({ data: serializeArticle(article, { viewerCanEdit: true }) }, { status: 201 });
+  return NextResponse.json(
+    { data: serializeArticle(article, { viewerCanEdit: true }) },
+    { status: 201 },
+  );
 }
 
 function clampPageSize(rawLimit: string | null) {
-    const parsed = Number(rawLimit);
-    if (Number.isFinite(parsed)) {
-        return Math.min(Math.max(Math.trunc(parsed), 1), MAX_PAGE_SIZE);
-    }
-    return DEFAULT_PAGE_SIZE;
+  const parsed = Number(rawLimit);
+  if (Number.isFinite(parsed)) {
+    return Math.min(Math.max(Math.trunc(parsed), 1), MAX_PAGE_SIZE);
+  }
+  return DEFAULT_PAGE_SIZE;
 }
 
 function validateCreateBody(
@@ -174,17 +185,25 @@ function validateCreateBody(
     return { success: false, message: "Field 'text' is required.", status: 400 };
   }
 
-  const mediaUploadIds = extractUploadIds(body.media);
+  const mediaUploadIds = extractUploadIds(body.mediaId);
   if (!mediaUploadIds.length) {
     return { success: false, message: "Provide at least one media upload.", status: 400 };
   }
   if (mediaUploadIds.length > MAX_MEDIA_UPLOADS) {
-    return { success: false, message: `A maximum of ${MAX_MEDIA_UPLOADS} media uploads is supported.`, status: 400 };
+    return {
+      success: false,
+      message: `A maximum of ${MAX_MEDIA_UPLOADS} media uploads is supported.`,
+      status: 400,
+    };
   }
 
   const sourceUploadIds = extractUploadIds(body.sourcesId ?? []);
   if (sourceUploadIds.length > MAX_SOURCE_UPLOADS) {
-    return { success: false, message: `A maximum of ${MAX_SOURCE_UPLOADS} source uploads is supported.`, status: 400 };
+    return {
+      success: false,
+      message: `A maximum of ${MAX_SOURCE_UPLOADS} source uploads is supported.`,
+      status: 400,
+    };
   }
 
   const title = typeof body.title === "string" ? body.title.trim() : null;
@@ -239,12 +258,20 @@ async function ensureUploadsOwnedByUser(
     .where(inArray(uploads.id, uniqueIds));
 
   if (rows.length !== uniqueIds.length) {
-    return { success: false, status: 404 as const, message: "One or more uploads are missing." } as const;
+    return {
+      success: false,
+      status: 404 as const,
+      message: "One or more uploads are missing.",
+    } as const;
   }
 
   const unauthorized = rows.find((row) => row.userId !== userId);
   if (unauthorized) {
-    return { success: false, status: 403 as const, message: "One or more uploads are unavailable." } as const;
+    return {
+      success: false,
+      status: 403 as const,
+      message: "One or more uploads are unavailable.",
+    } as const;
   }
 
   return { success: true } as const;
@@ -260,13 +287,15 @@ async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
   }
 
   if (!imageBinding) {
-    return upload
+    return upload;
   }
 
   try {
     const originalStream = await getImageStream(upload.key);
     const [infoStream, transformStream] = originalStream.tee();
-    const resizeTransform: { width?: number; height?: number; fit: "scale-down" } = { fit: "scale-down" };
+    const resizeTransform: { width?: number; height?: number; fit: "scale-down" } = {
+      fit: "scale-down",
+    };
 
     try {
       const info = await imageBinding.info(infoStream);
@@ -297,6 +326,6 @@ async function createThumbnailFromMedia(uploadId: string, user: SessionUser) {
     return uploadImage(resizedBuffer, mimeType, user);
   } catch (error) {
     console.error("Unable to transform thumbnail", error);
-    return upload
+    return upload;
   }
 }
