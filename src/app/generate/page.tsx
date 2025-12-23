@@ -19,7 +19,7 @@ import {
   type AuthMessagePayload,
   type SessionUser,
 } from "@/lib/client-session";
-import { buildApiUrl } from "@/lib/http";
+import { buildApiUrl, safeReadError } from "@/lib/http";
 
 const MAX_REFERENCES = 8;
 const nextTypewriterKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -105,6 +105,7 @@ export default function GeneratePage() {
   const [streamedText, setStreamedText] = useState<string>("");
   const [generationDuration, setGenerationDuration] = useState(0);
   const [typewriterSessionKey, setTypewriterSessionKey] = useState(() => nextTypewriterKey());
+  const dismissError = useCallback(() => setErrorMessage(null), []);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -643,6 +644,7 @@ export default function GeneratePage() {
 
   return (
     <>
+      {errorMessage && <ErrorBanner message={errorMessage} onDismiss={dismissError} />}
       <div className="app-shell px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
           <section className="relative overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/95 px-6 py-8 text-[var(--foreground)] shadow-soft sm:px-8 sm:py-10">
@@ -945,12 +947,6 @@ export default function GeneratePage() {
                     )}
                   </div>
                 )}
-
-                {errorMessage && (
-                  <div className="rounded-3xl border border-[var(--accent)] bg-[var(--accent-soft)]/70 p-4 text-sm text-[var(--alert-text)] shadow-soft">
-                    {errorMessage}
-                  </div>
-                )}
               </aside>
             </div>
           )}
@@ -1061,6 +1057,32 @@ export default function GeneratePage() {
         </div>
       )}
     </>
+  );
+}
+
+function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4 sm:px-6">
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="pointer-events-auto flex w-full max-w-3xl items-start gap-4 rounded-3xl border border-[var(--accent)] bg-[var(--surface)]/95 p-4 text-sm text-[var(--foreground)] shadow-soft"
+      >
+        <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
+            Heads up
+          </p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium">{message}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1226,18 +1248,4 @@ function resolveUploadUrl(key: string | null | undefined) {
   const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   if (!publicBase) return null;
   return `${publicBase.replace(/\/$/, "")}/${key}`;
-}
-
-async function safeReadError(response: Response): Promise<string | null> {
-  try {
-    const payload = (await response.clone().json()) as { error?: string; message?: string };
-    return payload.error ?? payload.message ?? null;
-  } catch {
-    try {
-      const text = await response.text();
-      return text || null;
-    } catch {
-      return null;
-    }
-  }
 }
