@@ -463,8 +463,8 @@ export default function GeneratePage() {
             throw new Error(message || "Upload failed. Try again.");
           }
 
-          const payload = (await res.json()) as { data?: UploadRecord };
-          const upload = payload?.data;
+          const payload = await res.json();
+          const upload = parseUploadResponse(payload);
           if (upload?.id && upload.key) {
             const previewUrl = URL.createObjectURL(file);
             previewUrlRegistry.current.add(previewUrl);
@@ -1134,6 +1134,19 @@ function isUploadRecord(value: unknown): value is UploadRecord {
     return false;
   }
   return "id" in value && "key" in value;
+}
+
+function parseUploadResponse(payload: unknown): UploadRecord | null {
+  if (isUploadRecord(payload)) {
+    return payload;
+  }
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const nested = (payload as { data?: unknown }).data;
+    if (isUploadRecord(nested)) {
+      return nested;
+    }
+  }
+  return null;
 }
 
 async function openGenerationStream(
