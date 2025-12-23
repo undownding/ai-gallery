@@ -41,7 +41,7 @@ npm run deploy
 
 GitHub sign-in is now available out of the box. To enable it locally and in Cloudflare, complete these steps:
 
-1. [Register a GitHub OAuth app](https://github.com/settings/developers) with the callback URL `https://<your-domain>/api/auth/github/callback` (or `http://localhost:3000/api/auth/github/callback` for local testing).
+1. [Register a GitHub OAuth app](https://github.com/settings/developers) with the callback URL `https://<your-domain>/auth/github/callback` (or `http://localhost:3000/auth/github/callback` for local testing).
 2. Store the following secrets so the Worker can read them at runtime:
 	- `GITHUB_CLIENT_ID`
 	- `GITHUB_CLIENT_SECRET`
@@ -56,12 +56,14 @@ wrangler d1 migrations apply ai-gallery --remote
 
 ### Auth API overview
 
-- `GET /api/auth/github` — redirects the browser to GitHub for OAuth.
-- `GET /api/auth/github/callback` — exchanges the OAuth `code`, creates/updates users, and issues `ai_gallery_access`/`ai_gallery_refresh` cookies.
-- `GET /api/auth/session` — returns the current user (if a valid access token is present).
-- `POST /api/auth/logout` — clears the auth cookies.
+The client now communicates with the API defined by `NEXT_PUBLIC_API_URL` via `buildApiUrl()`:
 
-Use the built-in UI badge or link directly to `/api/auth/github?redirectTo=/any/path` to start the flow.
+- `GET /auth/github` — redirects the popup window to GitHub using the provided `redirectTo` callback URL.
+- `POST /auth/github/token` — exchanges the OAuth `code` for access/refresh tokens and the initial user payload.
+- `GET /users/me` — returns the current user when a valid `Authorization: Bearer <accessToken>` header is supplied.
+- `POST /auth/token` — refreshes the access/refresh token pair when a valid refresh token is still active.
+
+The built-in UI now opens GitHub in a popup and writes the returned tokens to `localStorage`, so no first-party cookies are required.
 
 ## Learn More
 

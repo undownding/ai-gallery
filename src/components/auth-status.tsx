@@ -1,88 +1,147 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export type SessionUser = {
-  id: string;
-  login: string;
-  name?: string | null;
-  email?: string | null;
-  avatarUrl?: string | null;
-  isCreator?: boolean;
-};
+import {
+  AUTH_POPUP_MESSAGE,
+  AUTH_SESSION_EVENT,
+  broadcastSession,
+  buildGithubAuthorizeUrl,
+  clearStoredSession,
+  fetchCurrentUser,
+  getStoredSessionUser,
+  sanitizeRedirectPath,
+  type AuthMessagePayload,
+  type SessionUser,
+} from "@/lib/client-session";
 
-type SessionResponse = {
-  user: SessionUser | null;
-};
+const POPUP_FEATURES = "width=520,height=720,menubar=no,toolbar=no,status=no,location=no";
 
-export const AUTH_SESSION_EVENT = "ai-gallery:session";
-
-type AuthStatusProps = {
+export type AuthStatusProps = {
   redirectTo: string;
 };
 
-function broadcastSession(user: SessionUser | null) {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(AUTH_SESSION_EVENT, { detail: user }));
-}
-
 export function AuthStatus({ redirectTo }: AuthStatusProps) {
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(() => getStoredSessionUser());
   const [loading, setLoading] = useState(true);
   const [logoutPending, setLogoutPending] = useState(false);
+  const [loginPending, setLoginPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const popupRef = useRef<Window | null>(null);
+  const targetPath = useMemo(() => sanitizeRedirectPath(redirectTo, "/"), [redirectTo]);
+
+  const refreshSession = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      setLoading(true);
+      setError(null);
+    }
+    const nextUser = await fetchCurrentUser();
+    setUser(nextUser);
+    broadcastSession(nextUser);
+    if (!options.silent) {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/session", { cache: "no-store" });
-        if (!res.ok && res.status !== 401 && res.status !== 404) {
-          throw new Error("Unable to load session.");
-        }
-        const payload = (await res.json()) as SessionResponse;
-        if (active) {
-          const nextUser = payload?.user ?? null;
-          setUser(nextUser);
-          broadcastSession(nextUser);
-        }
-      } catch (sessionError) {
-        if (active) {
-          setError(sessionError instanceof Error ? sessionError.message : "Session error");
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
+
+    const handleSessionEvent = (event: Event) => {
+      if (!active) return;
+      const nextUser = (event as CustomEvent<SessionUser | null>).detail ?? null;
+      setUser(nextUser);
+    };
+
+    void refreshSession();
+
+    window.addEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
 
     return () => {
       active = false;
+      window.removeEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
+    };
+  }, [refreshSession]);
+
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (typeof window === "undefined") return;
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data as AuthMessagePayload;
+      if (!payload || payload.type !== AUTH_POPUP_MESSAGE) {
+        return;
+      }
+
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+        popupRef.current = null;
+      }
+
+      if (payload.status === "success") {
+        setLoginPending(false);
+        setError(null);
+        if (payload.user) {
+          setUser(payload.user);
+          broadcastSession(payload.user);
+          setLoading(false);
+        } else {
+          void refreshSession({ silent: true });
+        }
+      } else {
+        setLoginPending(false);
+        setError(payload.error || "Unable to sign in.");
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+    return () => window.removeEventListener("message", handleAuthMessage);
+  }, [refreshSession]);
+
+  useEffect(() => {
+    return () => {
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+        popupRef.current = null;
+      }
     };
   }, []);
 
-  const loginHref = useMemo(() => {
-    const target = redirectTo.startsWith("/") ? redirectTo : "/";
-    return `/api/auth/github?redirectTo=${encodeURIComponent(target)}`;
-  }, [redirectTo]);
+  const handleLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    setError(null);
+    setLoginPending(true);
 
-  const handleLogout = async () => {
+    const callbackUrl = new URL("/auth/github/callback", window.location.origin);
+    callbackUrl.searchParams.set("redirectTo", targetPath);
+
+    let authorizeUrl: string;
+    try {
+      authorizeUrl = buildGithubAuthorizeUrl(callbackUrl.toString());
+    } catch (issue) {
+      setLoginPending(false);
+      setError(issue instanceof Error ? issue.message : "Unable to start OAuth flow.");
+      return;
+    }
+
+    const popup = window.open(authorizeUrl, "ai-gallery-github", POPUP_FEATURES);
+    if (!popup) {
+      setLoginPending(false);
+      window.location.href = authorizeUrl;
+      return;
+    }
+
+    popupRef.current = popup;
+    popup.focus();
+  }, [targetPath]);
+
+  const handleLogout = useCallback(() => {
     setLogoutPending(true);
     setError(null);
-    try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
-      if (!res.ok) {
-        throw new Error("Logout failed.");
-      }
-      setUser(null);
-      broadcastSession(null);
-    } catch (logoutError) {
-      setError(logoutError instanceof Error ? logoutError.message : "Logout failed");
-    } finally {
-      setLogoutPending(false);
-    }
-  };
+    clearStoredSession();
+    setUser(null);
+    broadcastSession(null);
+    setLogoutPending(false);
+  }, []);
 
   if (loading) {
     return (
@@ -98,14 +157,20 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
         <div className="flex items-center gap-2">
           {user.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.avatarUrl} alt={user.login} className="h-8 w-8 rounded-full object-cover" />
+            <img
+              src={user.avatarUrl}
+              alt={user.login}
+              className="h-8 w-8 rounded-full object-cover"
+            />
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--border)] text-xs font-semibold">
               {user.login.slice(0, 2).toUpperCase()}
             </div>
           )}
           <div className="flex flex-col leading-tight">
-            <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Signed in</span>
+            <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+              Signed in
+            </span>
             <span className="font-semibold">{user.name ?? user.login}</span>
           </div>
         </div>
@@ -123,13 +188,15 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <a
-        href={loginHref}
-        className="inline-flex h-12 items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+      <button
+        type="button"
+        onClick={handleLogin}
+        disabled={loginPending}
+        className="inline-flex h-12 items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-60"
       >
         <span className="h-2 w-2 rounded-full bg-[var(--accent)]" aria-hidden />
-        Sign in with GitHub
-      </a>
+        {loginPending ? "Waiting for GitHub…" : "Sign in with GitHub"}
+      </button>
       {error && <span className="text-xs text-[var(--accent)]">{error}</span>}
     </div>
   );

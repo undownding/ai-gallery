@@ -4,10 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
+import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { StableMarkdownTypewriter } from "@/components/stable-markdown-typewriter";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
+import {
+  AUTH_POPUP_MESSAGE,
+  AUTH_SESSION_EVENT,
+  buildGithubAuthorizeUrl,
+  fetchCurrentUser,
+  getStoredSessionUser,
+  sanitizeRedirectPath,
+  type AuthMessagePayload,
+  type SessionUser,
+} from "@/lib/client-session";
 
 const MAX_REFERENCES = 8;
 const nextTypewriterKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -19,6 +29,8 @@ const aspectRatioPresets: { value: AspectRatio; label: string; hint: string }[] 
   { value: "16:9", label: "Cinematic", hint: "Landscape and film stills" },
   { value: "21:9", label: "Ultra-wide", hint: "Billboard mockups" },
 ];
+
+const AUTH_POPUP_FEATURES = "width=520,height=720,menubar=no,toolbar=no,status=no,location=no";
 
 const resolutionPresets: { value: ImageSize; label: string; hint: string }[] = [
   { value: "1K", label: "1K", hint: "Fast draft" },
@@ -56,10 +68,6 @@ type GenerationRequestPayload = {
   referenceUploadIds: string[];
 };
 
-type SessionResponse = {
-  user: SessionUser | null;
-};
-
 type TextChunkPayload = {
   text?: string;
 };
@@ -80,9 +88,10 @@ export default function GeneratePage() {
   const [previewUpload, setPreviewUpload] = useState<UploadRecord | null>(null);
   const [generatedUploads, setGeneratedUploads] = useState<UploadRecord[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => getStoredSessionUser());
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [inlineLoginPending, setInlineLoginPending] = useState(false);
   const [showRenderOptions, setShowRenderOptions] = useState(false);
   const [articleCreationState, setArticleCreationState] = useState<ArticleCreationState>({
     status: "idle",
@@ -100,6 +109,7 @@ export default function GeneratePage() {
 
   const controllerRef = useRef<AbortController | null>(null);
   const articlePersistControllerRef = useRef<AbortController | null>(null);
+  const inlinePopupRef = useRef<Window | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRegistry = useRef(new Set<string>());
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,6 +145,9 @@ export default function GeneratePage() {
     return () => {
       controllerRef.current?.abort();
       articlePersistControllerRef.current?.abort();
+      if (inlinePopupRef.current && !inlinePopupRef.current.closed) {
+        inlinePopupRef.current.close();
+      }
       previewUrlRegistry.current.forEach((url) => URL.revokeObjectURL(url));
       previewUrlRegistry.current.clear();
       if (durationIntervalRef.current) {
@@ -176,29 +189,9 @@ export default function GeneratePage() {
 
     const applySession = (user: SessionUser | null) => {
       if (!active) return;
+      setSessionError(null);
       setSessionUser(user);
       setSessionLoading(false);
-    };
-
-    const fetchSession = async () => {
-      setSessionError(null);
-      try {
-        const response = await fetch("/api/auth/session", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        if (!response.ok && response.status !== 401 && response.status !== 404) {
-          throw new Error("Unable to load session.");
-        }
-        const payload = (await response.json()) as SessionResponse;
-        applySession(payload.user ?? null);
-      } catch (sessionIssue) {
-        if (!active) return;
-        setSessionError(
-          sessionIssue instanceof Error ? sessionIssue.message : "Unable to load session.",
-        );
-        applySession(null);
-      }
     };
 
     const handleSessionEvent = (event: Event) => {
@@ -206,14 +199,52 @@ export default function GeneratePage() {
       applySession(detail);
     };
 
-    fetchSession();
     window.addEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
+
+    (async () => {
+      setSessionLoading(true);
+      const user = await fetchCurrentUser();
+      applySession(user);
+    })();
 
     return () => {
       active = false;
       window.removeEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
     };
   }, []);
+
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (typeof window === "undefined") return;
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data as AuthMessagePayload;
+      if (!payload || payload.type !== AUTH_POPUP_MESSAGE) {
+        return;
+      }
+
+      if (inlinePopupRef.current && !inlinePopupRef.current.closed) {
+        inlinePopupRef.current.close();
+        inlinePopupRef.current = null;
+      }
+
+      setInlineLoginPending(false);
+      if (payload.status === "error") {
+        setSessionError(payload.error || "Unable to sign in.");
+      } else {
+        setSessionError(null);
+      }
+    };
+
+    window.addEventListener("message", handleAuthMessage);
+    return () => window.removeEventListener("message", handleAuthMessage);
+  }, []);
+
+  useEffect(() => {
+    if (sessionUser) {
+      setInlineLoginPending(false);
+      setSessionError(null);
+    }
+  }, [sessionUser]);
 
   const closeRenderOptions = useCallback(() => {
     setShowRenderOptions(false);
@@ -250,10 +281,38 @@ export default function GeneratePage() {
     return lastId ? [lastId] : [];
   }, [generatedUploads]);
 
-  const loginHref = useMemo(() => {
-    const target = pathname && pathname.startsWith("/") ? pathname : "/generate";
-    return `/api/auth/github?redirectTo=${encodeURIComponent(target)}`;
+  const inlineLoginTarget = useMemo(() => {
+    const candidate = pathname && pathname.startsWith("/") ? pathname : "/generate";
+    return sanitizeRedirectPath(candidate, "/generate");
   }, [pathname]);
+
+  const handleInlineLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    setSessionError(null);
+    setInlineLoginPending(true);
+
+    const callbackUrl = new URL("/auth/github/callback", window.location.origin);
+    callbackUrl.searchParams.set("redirectTo", inlineLoginTarget);
+
+    let authorizeUrl: string;
+    try {
+      authorizeUrl = buildGithubAuthorizeUrl(callbackUrl.toString());
+    } catch (issue) {
+      setInlineLoginPending(false);
+      setSessionError(issue instanceof Error ? issue.message : "Unable to start OAuth flow.");
+      return;
+    }
+
+    const popup = window.open(authorizeUrl, "ai-gallery-github", AUTH_POPUP_FEATURES);
+    if (!popup) {
+      setInlineLoginPending(false);
+      window.location.href = authorizeUrl;
+      return;
+    }
+
+    inlinePopupRef.current = popup;
+    popup.focus();
+  }, [inlineLoginTarget]);
 
   const renderOptionsLabel = useMemo(() => {
     const sizeLabel = imageSize || "Auto";
@@ -600,12 +659,14 @@ export default function GeneratePage() {
                 Use your GitHub account to unlock the Gemini playground and persist reference
                 uploads.
               </p>
-              <a
-                href={loginHref}
-                className="mt-6 inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+              <button
+                type="button"
+                onClick={handleInlineLogin}
+                disabled={inlineLoginPending}
+                className="mt-6 inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Sign in with GitHub
-              </a>
+                {inlineLoginPending ? "Opening GitHub…" : "Sign in with GitHub"}
+              </button>
               {sessionError && <p className="mt-3 text-xs text-[var(--accent)]">{sessionError}</p>}
             </div>
           ) : (

@@ -1,12 +1,16 @@
 "use client";
- 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { ArticleCard, formatDate } from "@/components/article-card";
-import { AuthStatus, AUTH_SESSION_EVENT } from "@/components/auth-status";
-import type { SessionUser } from "@/components/auth-status";
+import { AuthStatus } from "@/components/auth-status";
+import {
+  AUTH_SESSION_EVENT,
+  fetchCurrentUser,
+  getStoredSessionUser,
+  type SessionUser,
+} from "@/lib/client-session";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { buildApiUrl } from "@/lib/http";
 import type { ArticleRecord } from "@/types/articles";
@@ -28,7 +32,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => getStoredSessionUser());
 
   const [themeMode, setThemeMode] = useThemePreference();
   const pathname = usePathname();
@@ -84,20 +88,9 @@ export default function Home() {
     window.addEventListener(AUTH_SESSION_EVENT, handleSessionEvent);
 
     (async () => {
-      try {
-        const res = await fetch("/api/auth/session", { cache: "no-store" });
-        if (!active) return;
-        if (!res.ok && res.status !== 401 && res.status !== 404) {
-          throw new Error("Session request failed");
-        }
-        const payload = (await res.json()) as { user: SessionUser | null };
-        if (!active) return;
-        setSessionUser(payload.user);
-      } catch {
-        if (active) {
-          setSessionUser(null);
-        }
-      }
+      const user = await fetchCurrentUser();
+      if (!active) return;
+      setSessionUser(user);
     })();
 
     return () => {

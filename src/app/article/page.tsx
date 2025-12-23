@@ -4,7 +4,13 @@
 import { Suspense, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
+import { AuthStatus } from "@/components/auth-status";
+import {
+  AUTH_SESSION_EVENT,
+  fetchCurrentUser,
+  getStoredSessionUser,
+  type SessionUser,
+} from "@/lib/client-session";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { useArticleDetail, extractArticleDetail } from "@/hooks/use-article-detail";
 import { buildApiUrl, safeReadError } from "@/lib/http";
@@ -13,7 +19,6 @@ import type { ArticleAsset as ArticleAssetModel, ArticleDetail } from "@/types/a
 
 type ArticleAsset = ArticleAssetModel;
 type UpdateMessage = { type: "success" | "error"; text: string } | null;
-type SessionResponse = { user: SessionUser | null };
 
 export default function ArticleDetailPage() {
   return (
@@ -35,7 +40,7 @@ function ArticleDetailPageContent() {
   const [savingTitle, setSavingTitle] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useThemePreference();
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => getStoredSessionUser());
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<ArticleAsset | null>(null);
 
@@ -98,39 +103,19 @@ function ArticleDetailPageContent() {
   useEffect(() => {
     let active = true;
 
-    const readSession = async () => {
-      try {
-        const response = await fetch("/api/auth/session", { cache: "no-store" });
-        if (!response.ok && response.status !== 401 && response.status !== 404) {
-          throw new Error("Unable to load session.");
-        }
-        const payload = (await response.json()) as SessionResponse;
-        if (active) {
-          setSessionUser(payload.user ?? null);
-        }
-      } catch {
-        if (active) {
-          setSessionUser(null);
-        }
-      }
-    };
-
-    readSession();
-
-    if (typeof window === "undefined") {
-      return () => {
-        active = false;
-      };
-    }
-
     const handleSessionBroadcast = (event: Event) => {
+      if (!active) return;
       const detail = (event as CustomEvent<SessionUser | null>).detail ?? null;
-      if (active) {
-        setSessionUser(detail);
-      }
+      setSessionUser(detail);
     };
 
     window.addEventListener(AUTH_SESSION_EVENT, handleSessionBroadcast);
+
+    (async () => {
+      const user = await fetchCurrentUser();
+      if (!active) return;
+      setSessionUser(user);
+    })();
 
     return () => {
       active = false;
