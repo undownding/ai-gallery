@@ -209,6 +209,10 @@ export function getValidRefreshToken() {
   return stored.refreshToken;
 }
 
+export async function getValidAccessToken() {
+  return ensureAccessToken();
+}
+
 export async function refreshTokens(): Promise<TokenPayloadDto | null> {
   if (refreshPromise) {
     return refreshPromise;

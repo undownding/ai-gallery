@@ -8,6 +8,7 @@ import { AuthStatus } from "@/components/auth-status";
 import {
   AUTH_SESSION_EVENT,
   fetchCurrentUser,
+  getValidAccessToken,
   getStoredSessionUser,
   type SessionUser,
 } from "@/lib/client-session";
@@ -141,10 +142,17 @@ function ArticleDetailPageContent() {
     setUpdatingVisibility(true);
     setUpdateMessage(null);
     try {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        throw new Error("Unable to authenticate this session.");
+      }
       const response = await fetch(buildApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ isPublic: !article.isPublic }),
       });
       if (!response.ok) {
@@ -194,10 +202,17 @@ function ArticleDetailPageContent() {
     setSavingTitle(true);
     setTitleError(null);
     try {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        throw new Error("Unable to authenticate this session.");
+      }
       const response = await fetch(buildApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ title: titleDraft.trim() || null }),
       });
       if (!response.ok) {
