@@ -15,7 +15,25 @@ import {
   type SessionUser,
 } from "@/lib/client-session";
 
-const POPUP_FEATURES = "width=520,height=720,menubar=no,toolbar=no,status=no,location=no";
+const POPUP_WIDTH = 520;
+const POPUP_HEIGHT = 720;
+const POPUP_BASE_FEATURES = "menubar=no,toolbar=no,status=no,location=no";
+
+const getPopupFeatures = () => {
+  if (typeof window === "undefined") {
+    return `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},${POPUP_BASE_FEATURES}`;
+  }
+
+  const screenLeft = window.screenLeft ?? window.screenX ?? 0;
+  const screenTop = window.screenTop ?? window.screenY ?? 0;
+  const viewportWidth = window.innerWidth ?? document.documentElement.clientWidth ?? screen.width;
+  const viewportHeight =
+    window.innerHeight ?? document.documentElement.clientHeight ?? screen.height;
+  const left = Math.max(screenLeft + (viewportWidth - POPUP_WIDTH) / 2, 0);
+  const top = Math.max(screenTop + (viewportHeight - POPUP_HEIGHT) / 2, 0);
+
+  return `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},${POPUP_BASE_FEATURES}`;
+};
 
 export type AuthStatusProps = {
   redirectTo: string;
@@ -123,7 +141,7 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
       return;
     }
 
-    const popup = window.open(authorizeUrl, "ai-gallery-github", POPUP_FEATURES);
+    const popup = window.open(authorizeUrl, "ai-gallery-github", getPopupFeatures());
     if (!popup) {
       setLoginPending(false);
       window.location.href = authorizeUrl;
@@ -145,7 +163,8 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
 
   if (loading) {
     return (
-      <div className="rounded-full border border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)]">
+      <div className="inline-flex h-12 items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 text-sm font-semibold text-[var(--muted)]">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--muted)]" aria-hidden />
         Checking sign-in…
       </div>
     );
