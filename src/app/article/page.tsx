@@ -123,7 +123,16 @@ function ArticleDetailPageContent() {
     };
   }, []);
 
-  const canManageStory = false;
+  const authorId = article?.author?.id;
+  const authorLogin = article?.author?.login;
+  const userId = sessionUser?.id;
+  const userLogin = sessionUser?.login;
+  const canManageStory = Boolean(
+    article &&
+    sessionUser &&
+    ((authorId && userId && authorId === userId) ||
+      (authorLogin && userLogin && authorLogin === userLogin)),
+  );
   const canToggleVisibility = canManageStory;
   const canEditTitle = canManageStory;
 
