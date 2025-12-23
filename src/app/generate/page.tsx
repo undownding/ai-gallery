@@ -346,7 +346,7 @@ export default function GeneratePage() {
         throw new Error("Session expired. Please sign in again.");
       }
 
-      const response = await fetch(buildApiUrl("/article"), {
+      const response = await fetch(buildApiUrl("/articles"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
