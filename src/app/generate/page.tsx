@@ -366,8 +366,8 @@ export default function GeneratePage() {
         throw new Error(message);
       }
 
-      const payload = (await response.json()) as { data?: { id?: string } };
-      const articleId = payload?.data?.id;
+      const payload = (await response.json()) as { id?: string };
+      const articleId = payload?.id;
       if (!articleId) {
         throw new Error("Article id is missing in the response.");
       }
