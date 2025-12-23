@@ -4,28 +4,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { ArticleCard, formatDate } from "@/components/article-card";
 import { AuthStatus, AUTH_SESSION_EVENT } from "@/components/auth-status";
 import type { SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
-
-type ArticleAsset = {
-  id: string;
-  key: string;
-  eTag: string;
-  createdAt: string;
-};
-
-type ArticleRecord = {
-  id: string;
-  title: string | null;
-  text: string;
-  thumbnailImage: ArticleAsset | null;
-  media: ArticleAsset[];
-  sources: ArticleAsset[];
-  createdAt: string;
-  updatedAt: string;
-  viewerCanEdit: boolean;
-};
+import type { ArticleRecord } from "@/types/articles";
 
 type ArticlesResponse = {
   data: ArticleRecord[];
@@ -240,39 +223,6 @@ export default function Home() {
   );
 }
 
-function ArticleCard({
-  article,
-  onSelect,
-}: {
-  article: ArticleRecord;
-  onSelect: (articleId: string) => void;
-}) {
-  const coverSrc = resolveMediaCover(article);
-
-  return (
-    <button type="button" className="article-card" onClick={() => onSelect(article.id)}>
-      <div className="card-media">
-        {coverSrc ? (
-          <img src={coverSrc} alt={article.title ?? "Article cover"} loading="lazy" />
-        ) : (
-          <div className="card-media__placeholder">Awaiting media</div>
-        )}
-        <span className="card-chip">{formatDate(article.createdAt)}</span>
-      </div>
-      <div className="flex flex-col gap-2 text-left">
-        <h3 className="text-base font-semibold text-[var(--foreground)]">
-          {article.title ?? "Untitled story"}
-        </h3>
-        <p className="line-clamp-3 text-sm text-[var(--muted)]">{article.text}</p>
-        <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-          <span>{formatShots(article)}</span>
-          <span>Open story</span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 function HeroStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-[var(--foreground)]">
@@ -280,32 +230,4 @@ function HeroStat({ label, value }: { label: string; value: string | number }) {
       <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
-}
-
-function resolveMediaCover(article: ArticleRecord) {
-  const candidate = article.thumbnailImage ?? article.media[0] ?? null;
-  return resolveAssetUrl(candidate);
-}
-
-function resolveAssetUrl(asset: ArticleAsset | null | undefined) {
-  if (!asset?.key) return null;
-  if (asset.key.startsWith("http")) return asset.key;
-  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
-  if (publicBase) return `${publicBase.replace(/\/$/, "")}/${asset.key}`;
-  return `/api/uploads/${encodeURIComponent(asset.key)}`;
-}
-
-function formatDate(value: string) {
-  try {
-    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
-      new Date(value),
-    );
-  } catch {
-    return value;
-  }
-}
-
-function formatShots(article: ArticleRecord) {
-  const count = article.media.length || (article.thumbnailImage ? 1 : 0);
-  return `${count} shot${count === 1 ? "" : "s"}`;
 }
