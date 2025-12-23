@@ -6,12 +6,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuthStatus, AUTH_SESSION_EVENT, type SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
-import { useArticleDetail } from "@/hooks/use-article-detail";
-import type { ArticleAssetPayload, ArticleResponsePayload } from "@/lib/articles";
-import { safeReadError } from "@/lib/http";
+import { useArticleDetail, extractArticleDetail } from "@/hooks/use-article-detail";
+import { buildArticlesApiUrl, safeReadError } from "@/lib/http";
 import { resolveUploadUrl } from "@/lib/uploads-client";
+import type { ArticleAsset as ArticleAssetModel, ArticleDetail } from "@/types/articles";
 
-type ArticleAsset = ArticleAssetPayload;
+type ArticleAsset = ArticleAssetModel;
 type UpdateMessage = { type: "success" | "error"; text: string } | null;
 type SessionResponse = { user: SessionUser | null };
 
@@ -44,8 +44,8 @@ function ArticleDetailPageContent() {
 
   const galleryAssets = useMemo(() => {
     if (!article) return [] as ArticleAsset[];
-    if (article.media.length) return article.media;
-    return article.thumbnailImage ? [article.thumbnailImage] : [];
+    if (article.media?.length) return article.media;
+    return article.thumbnail ? [article.thumbnail] : [];
   }, [article]);
 
   const sourceAssets = article?.sources ?? [];
@@ -138,12 +138,7 @@ function ArticleDetailPageContent() {
     };
   }, []);
 
-  const viewerIsAuthor = useMemo(() => {
-    if (!article?.author?.id || !sessionUser?.id) return false;
-    return article.author.id === sessionUser.id;
-  }, [article?.author?.id, sessionUser?.id]);
-
-  const canManageStory = Boolean(article?.viewerCanEdit && viewerIsAuthor);
+  const canManageStory = false;
   const canToggleVisibility = canManageStory;
   const canEditTitle = canManageStory;
 
@@ -152,8 +147,9 @@ function ArticleDetailPageContent() {
     setUpdatingVisibility(true);
     setUpdateMessage(null);
     try {
-      const response = await fetch(`/api/articles/${article.id}`, {
+      const response = await fetch(buildArticlesApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isPublic: !article.isPublic }),
       });
@@ -161,11 +157,15 @@ function ArticleDetailPageContent() {
         const message = (await safeReadError(response)) ?? "Unable to update article.";
         throw new Error(message);
       }
-      const payload = (await response.json()) as { data: ArticleResponsePayload };
-      setArticle(payload.data);
+      const payload = await response.json();
+      const nextArticle = extractArticleDetail(payload);
+      if (!nextArticle) {
+        throw new Error("Article response missing data.");
+      }
+      setArticle(nextArticle);
       setUpdateMessage({
         type: "success",
-        text: payload.data.isPublic ? "Story is now public." : "Story hidden from the gallery.",
+        text: nextArticle.isPublic ? "Story is now public." : "Story hidden from the gallery.",
       });
     } catch (issue) {
       setUpdateMessage({
@@ -200,8 +200,9 @@ function ArticleDetailPageContent() {
     setSavingTitle(true);
     setTitleError(null);
     try {
-      const response = await fetch(`/api/articles/${article.id}`, {
+      const response = await fetch(buildArticlesApiUrl(`/articles/${article.id}`), {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: titleDraft.trim() || null }),
       });
@@ -209,9 +210,13 @@ function ArticleDetailPageContent() {
         const message = (await safeReadError(response)) ?? "Unable to update title.";
         throw new Error(message);
       }
-      const payload = (await response.json()) as { data: ArticleResponsePayload };
-      setArticle(payload.data);
-      setTitleDraft(payload.data.title ?? "");
+      const payload = await response.json();
+      const nextArticle = extractArticleDetail(payload);
+      if (!nextArticle) {
+        throw new Error("Article response missing data.");
+      }
+      setArticle(nextArticle);
+      setTitleDraft(nextArticle.title ?? "");
       setEditingTitle(false);
       setUpdateMessage({ type: "success", text: "Title updated." });
     } catch (issue) {
@@ -644,7 +649,7 @@ function AuthorBadge({
   author,
   createdAt,
 }: {
-  author: ArticleResponsePayload["author"];
+  author: ArticleDetail["author"];
   createdAt: string;
 }) {
   const initials = author?.name?.slice(0, 1) ?? author?.login?.slice(0, 1) ?? "?";

@@ -8,6 +8,7 @@ import { ArticleCard, formatDate } from "@/components/article-card";
 import { AuthStatus, AUTH_SESSION_EVENT } from "@/components/auth-status";
 import type { SessionUser } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
+import { buildArticlesApiUrl } from "@/lib/http";
 import type { ArticleRecord } from "@/types/articles";
 
 type ArticlesResponse = {
@@ -45,7 +46,9 @@ export default function Home() {
     try {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (cursor) params.set("afterId", cursor);
-      const response = await fetch(`/api/articles?${params.toString()}`, { cache: "no-store" });
+      const query = params.toString();
+      const url = `${buildArticlesApiUrl("/articles")}${query ? `?${query}` : ""}`;
+      const response = await fetch(url, { cache: "no-store", credentials: "include" });
       if (!response.ok) throw new Error("Feed is cooling down. Try again shortly.");
       const payload: ArticlesResponse = await response.json();
       setArticles((prev) => (cursor ? [...prev, ...payload.data] : payload.data));
@@ -126,7 +129,13 @@ export default function Home() {
 
   const totalShots = useMemo(
     () =>
-      articles.reduce((sum, item) => sum + (item.media.length || (item.thumbnailImage ? 1 : 0)), 0),
+      articles.reduce((sum, item) => {
+        const mediaCount = item.media?.length ?? 0;
+        if (mediaCount) {
+          return sum + mediaCount;
+        }
+        return sum + (item.thumbnail ? 1 : 0);
+      }, 0),
     [articles],
   );
 

@@ -46,7 +46,7 @@ export function formatDate(value: string) {
 }
 
 function resolveMediaCover(article: ArticleRecord) {
-  const candidate = article.thumbnailImage ?? article.media[0] ?? null;
+  const candidate = article.thumbnail ?? article.media?.[0] ?? null;
   return resolveAssetUrl(candidate);
 }
 
@@ -59,6 +59,7 @@ function resolveAssetUrl(asset: ArticleAsset | null | undefined) {
 }
 
 function formatShots(article: ArticleRecord) {
-  const count = article.media.length || (article.thumbnailImage ? 1 : 0);
+  const mediaCount = article.media?.length ?? 0;
+  const count = mediaCount || (article.thumbnail ? 1 : 0);
   return `${count} shot${count === 1 ? "" : "s"}`;
 }

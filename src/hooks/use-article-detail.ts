@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { ArticleResponsePayload } from "@/lib/articles";
-import { safeReadError } from "@/lib/http";
+import { buildArticlesApiUrl, safeReadError } from "@/lib/http";
+import type { ArticleDetail } from "@/types/articles";
 
 const MISSING_ID_ERROR = "Missing article id. Append '?id=<articleId>' to the URL.";
 
 export function useArticleDetail(articleId: string | null) {
-  const [article, setArticle] = useState<ArticleResponsePayload | null>(null);
+  const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(() => Boolean(articleId));
   const [error, setError] = useState<string | null>(null);
 
@@ -24,13 +24,20 @@ export function useArticleDetail(articleId: string | null) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/articles/${articleId}`, { cache: "no-store" });
+      const response = await fetch(buildArticlesApiUrl(`/articles/${articleId}`), {
+        cache: "no-store",
+        credentials: "include",
+      });
       if (!response.ok) {
         const message = (await safeReadError(response)) ?? "Unable to load article.";
         throw new Error(message);
       }
-      const payload = (await response.json()) as { data: ArticleResponsePayload };
-      setArticle(payload.data);
+      const payload = await response.json();
+      const nextArticle = extractArticleDetail(payload);
+      if (!nextArticle) {
+        throw new Error("Article not found.");
+      }
+      setArticle(nextArticle);
     } catch (issue) {
       setArticle(null);
       setError(issue instanceof Error ? issue.message : "Unable to load article.");
@@ -51,4 +58,26 @@ export function useArticleDetail(articleId: string | null) {
     error,
     reload: loadArticle,
   } as const;
+}
+
+export function extractArticleDetail(payload: unknown): ArticleDetail | null {
+  if (payload == null) {
+    return null;
+  }
+
+  if (typeof payload === "object" && "data" in (payload as Record<string, unknown>)) {
+    const nested = (payload as { data?: ArticleDetail | null }).data;
+    return normalizeArticleDetail(nested ?? null);
+  }
+
+  return normalizeArticleDetail(payload as ArticleDetail | null);
+}
+
+function normalizeArticleDetail(value: ArticleDetail | null): ArticleDetail | null {
+  if (!value) return null;
+  return {
+    ...value,
+    media: value.media ?? [],
+    sources: value.sources ?? [],
+  };
 }
