@@ -42,11 +42,11 @@ function ArticleDetailSkeleton() {
   return (
     <section className="grid gap-8 min-h-[600px] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:flex-1 lg:min-h-0 lg:h-full lg:grid-rows-1">
       {/* MediaShowcase Skeleton */}
-      <div className="relative rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+      <div className="relative rounded-xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
         <div className="relative flex snap-x snap-mandatory overflow-x-auto bg-[var(--background)]/30 lg:flex-1 lg:min-h-0">
           <div className="relative min-w-full snap-center px-2 py-1 lg:h-full">
             <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center bg-[var(--background)]/40">
-              <div className="h-full w-full animate-pulse bg-gray-200 rounded-lg" />
+              <div className="h-full w-full animate-pulse bg-gray-200 rounded-xlg" />
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@ function ArticleDetailSkeleton() {
       </div>
 
       {/* Content Panel Skeleton */}
-      <div className="space-y-8 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+      <div className="space-y-8 rounded-xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
         {/* AuthorBadge Skeleton */}
         <div className="lg:flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -101,9 +101,9 @@ function ArticleDetailSkeleton() {
           <div className="space-y-3">
             <div className="h-3 w-36 animate-pulse bg-gray-200 rounded" />
             <div className="flex items-center gap-3">
-              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
-              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
-              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-xl" />
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-xl" />
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-xl" />
             </div>
           </div>
         </div>
@@ -333,7 +333,7 @@ function ArticleDetailPageContent() {
         {loading ? (
           <ArticleDetailSkeleton />
         ) : error ? (
-          <div className="space-y-4 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
+          <div className="space-y-4 rounded-xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
             <p>{error}</p>
             <button
               type="button"
@@ -350,7 +350,7 @@ function ArticleDetailPageContent() {
                 title={article.title}
                 onViewAsset={setPreviewAsset}
               />
-              <div className="space-y-8 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+              <div className="space-y-8 rounded-xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
                 <div className="lg:flex-shrink-0">
                   <AuthorBadge author={article.author} createdAt={metadata.created} />
                 </div>
@@ -378,7 +378,7 @@ function ArticleDetailPageContent() {
                                 handleCancelEditTitle();
                               }
                             }}
-                            className="w-full rounded-2xl border border-(--border)/40 bg-(--surface)/30 px-5 py-3 text-2xl font-serif leading-snug text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none backdrop-blur-md backdrop-saturate-150 sm:text-3xl"
+                            className="w-full rounded-xl border border-(--border)/40 bg-(--surface)/30 px-5 py-3 text-2xl font-serif leading-snug text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none backdrop-blur-md backdrop-saturate-150 sm:text-3xl"
                             placeholder="Untitled concept"
                             disabled={savingTitle}
                           />
@@ -535,7 +535,7 @@ function ArticlePageFallback() {
 
 function DetailStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 text-[var(--foreground)] backdrop-blur-md backdrop-saturate-150">
+    <div className="rounded-xl border border-(--border)/40 bg-(--surface)/30 p-4 text-[var(--foreground)] backdrop-blur-md backdrop-saturate-150">
       <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
       <p className="text-2xl font-semibold">{value}</p>
     </div>
@@ -595,7 +595,7 @@ function MediaShowcase({
   );
 
   const baseClasses =
-    "relative rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full";
+    "relative rounded-xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full";
 
   if (!hasMedia) {
     return (
@@ -697,7 +697,7 @@ function ImagePreviewModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-6 shadow-2xl backdrop-blur-md backdrop-saturate-150"
+        className="relative w-full max-w-5xl rounded-xl border border-(--border)/40 bg-(--surface)/30 p-6 shadow-2xl backdrop-blur-md backdrop-saturate-150"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -736,12 +736,12 @@ function SourcePeek({ assets }: { assets: ArticleAsset[] }) {
               key={asset.id}
               src={src}
               alt="Source reference"
-              className="h-20 w-20 rounded-2xl border border-(--border)/40 object-cover"
+              className="h-20 w-20 rounded-md border border-(--border)/40 object-cover"
             />
           );
         })}
         {remaining > 0 && (
-          <span className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-3 text-xs text-[var(--muted)]">
+          <span className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-xs text-[var(--muted)]">
             +{remaining} more
           </span>
         )}
