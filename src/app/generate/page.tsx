@@ -82,6 +82,7 @@ type DoneEventPayload = {
 };
 
 function useAnimatedText(text: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [instance, setInstance] = useState<any>(null);
   const displayedLengthRef = useRef(0);
   const previousTextRef = useRef('');
@@ -128,6 +129,7 @@ function useAnimatedText(text: string) {
   const el = (
     <TypeIt
       options={{ cursor: false, speed: 30 }}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       getAfterInit={(i: any) => {
         setInstance(i);
         return i;
