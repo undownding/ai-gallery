@@ -42,7 +42,7 @@ export function ArticleCard({ article, onSelect }: ArticleCardProps) {
                 className="h-5 w-5 rounded-full"
               />
             ) : (
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--muted)] text-[10px] font-semibold text-[var(--background)]">
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-(--muted) text-[10px] font-semibold text-background">
                 {(article.author?.name ?? article.author?.login ?? "?").slice(0, 1).toUpperCase()}
               </div>
             )}

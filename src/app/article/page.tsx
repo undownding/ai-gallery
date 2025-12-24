@@ -56,13 +56,6 @@ function ArticleDetailPageContent() {
 
   const sourceAssets = article?.sources ?? [];
 
-  const statusLabel = article
-    ? article.isPublic
-      ? "Public on gallery"
-      : "Private draft"
-    : "Loading status…";
-
-  const shotsCount = galleryAssets.length;
   const metadata = useMemo(
     () => ({
       created: article ? formatDate(article.createdAt) : "—",
@@ -236,98 +229,29 @@ function ArticleDetailPageContent() {
   }, [article, canEditTitle, setArticle, titleDraft]);
 
   return (
-    <div className="app-shell px-4 pb-20 pt-10 sm:px-6 lg:px-12">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-        <header className="rounded-[40px] border border-[var(--border)] bg-[var(--surface)]/95 p-8 shadow-soft ring-1 ring-white/5">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => router.push("/")}
-                className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--muted)] transition hover:text-[var(--accent)]"
-              >
-                Back to feed
-              </button>
-              {editingTitle ? (
-                <div className="space-y-3">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
-                    Story title
-                  </label>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={titleDraft}
-                    onChange={(event) => setTitleDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        handleSaveTitle();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        handleCancelEditTitle();
-                      }
-                    }}
-                    className="w-full rounded-[28px] border border-[var(--border)] bg-[var(--background)]/60 px-6 py-4 text-3xl font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
-                    placeholder="Untitled story"
-                    disabled={savingTitle}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveTitle}
-                      disabled={savingTitle}
-                      className="rounded-full border border-[var(--border)] px-6 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {savingTitle ? "Saving title…" : "Save title"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelEditTitle}
-                      disabled={savingTitle}
-                      className="rounded-full border border-transparent px-6 py-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  {titleError && <p className="text-sm text-[var(--accent)]">{titleError}</p>}
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-start gap-3">
-                  <h1 className="text-[clamp(2.75rem,5vw,4.75rem)] font-serif leading-[1.08] text-[var(--foreground)]">
-                    {article?.title ?? "Untitled story"}
-                  </h1>
-                  {canEditTitle && (
-                    <button
-                      type="button"
-                      onClick={handleBeginEditTitle}
-                      className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      Edit title
-                    </button>
-                  )}
-                </div>
-              )}
-              <p className="text-sm text-[var(--muted)]">{statusLabel}</p>
-            </div>
-            <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <ThemeToggle mode={themeMode} onChange={setThemeMode} />
-              <AuthStatus redirectTo={redirectTarget} />
-            </div>
+    <div className="app-shell px-4 pb-10 pt-10 sm:px-6 lg:px-12 lg:pb-6 lg:flex lg:flex-col">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 lg:gap-8 lg:flex-1 lg:min-h-0 lg:h-full">
+        {/* Top Navigation Bar */}
+        <div className="flex items-center justify-between lg:shrink-0">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="text-[11px] font-semibold uppercase tracking-[0.35em] text-(--muted) transition hover:text-(--accent)"
+          >
+            Back to feed
+          </button>
+          <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <ThemeToggle mode={themeMode} onChange={setThemeMode} />
+            <AuthStatus redirectTo={redirectTarget} />
           </div>
-          <div className="mt-8 grid gap-4 text-sm sm:grid-cols-3">
-            <DetailStat label="Shots" value={shotsCount} />
-            <DetailStat label="Created" value={metadata.created} />
-            <DetailStat label="Last updated" value={metadata.updated} />
-          </div>
-        </header>
+        </div>
 
         {loading ? (
           <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 text-center text-sm text-[var(--muted)]">
             Loading article…
           </div>
         ) : error ? (
-          <div className="space-y-4 rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 text-center text-sm text-[var(--muted)]">
+          <div className="space-y-4 rounded-4xl border border-(--border) bg-(--surface)/90 p-8 text-center text-sm text-(--muted) ">
             <p>{error}</p>
             <button
               type="button"
@@ -338,72 +262,140 @@ function ArticleDetailPageContent() {
             </button>
           </div>
         ) : article ? (
-          <section className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <MediaShowcase
-              assets={galleryAssets}
-              title={article.title}
-              onViewAsset={setPreviewAsset}
-            />
-            <div className="space-y-8 rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 shadow-soft">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <AuthorBadge author={article.author} createdAt={metadata.created} />
-                <div className="text-right text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
-                  <p>Story status</p>
-                  <p className="text-base font-semibold text-[var(--foreground)]">{statusLabel}</p>
+          <section className="grid gap-8 min-h-[600px] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:flex-1 lg:min-h-0 lg:h-full lg:grid-rows-1">
+              <MediaShowcase
+                assets={galleryAssets}
+                title={article.title}
+                onViewAsset={setPreviewAsset}
+              />
+              <div className="space-y-8 rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 shadow-soft lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+                <div className="lg:flex-shrink-0">
+                  <AuthorBadge author={article.author} createdAt={metadata.created} />
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">
-                  Prompt digest
-                </p>
-                <h2 className="font-serif text-3xl leading-snug text-[var(--foreground)] sm:text-4xl">
-                  {article.title ?? "Untitled concept"}
-                </h2>
-                <div
-                  className={`relative text-base leading-relaxed text-[var(--foreground)] ${
-                    promptIsLong && !isPromptExpanded ? "max-h-72 overflow-hidden pr-4" : ""
-                  }`}
-                >
-                  <p>{article.text}</p>
-                  {promptIsLong && !isPromptExpanded && (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/80 to-transparent" />
+                <div className="space-y-3 lg:flex-1 lg:flex lg:flex-col lg:min-h-0">
+                  <div className="space-y-3">
+                    <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">
+                      Prompt digest
+                    </p>
+                    <h2 className="font-serif text-3xl leading-snug text-[var(--foreground)] sm:text-4xl">
+                      {article.title ?? "Untitled concept"}
+                    </h2>
+                    <div
+                      className={`relative text-base leading-relaxed text-[var(--foreground)] lg:flex-1 lg:overflow-y-auto ${
+                        promptIsLong && !isPromptExpanded ? "max-h-72 overflow-hidden pr-4 lg:max-h-none" : ""
+                      }`}
+                    >
+                      <p>{article.text}</p>
+                      {promptIsLong && !isPromptExpanded && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[var(--surface)] via-[var(--surface)]/80 to-transparent lg:hidden" />
+                      )}
+                    </div>
+                    {promptIsLong && (
+                      <button
+                        type="button"
+                        onClick={() => setIsPromptExpanded((prev) => !prev)}
+                        aria-expanded={isPromptExpanded}
+                        className="mt-2 text-xs font-semibold uppercase tracking-[0.35em] text-[var(--foreground)] transition hover:text-[var(--accent)] lg:hidden"
+                      >
+                        {isPromptExpanded ? "Collapse prompt" : "Read full prompt"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3 lg:flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
+                    Story controls
+                  </p>
+                  {article && (
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+                        article.isPublic
+                          ? "bg-emerald-500/20 text-emerald-500"
+                          : "bg-[var(--muted)]/20 text-[var(--muted)]"
+                      }`}
+                    >
+                      {article.isPublic ? "Public" : "Private"}
+                    </span>
                   )}
                 </div>
-                {promptIsLong && (
-                  <button
-                    type="button"
-                    onClick={() => setIsPromptExpanded((prev) => !prev)}
-                    aria-expanded={isPromptExpanded}
-                    className="mt-2 text-xs font-semibold uppercase tracking-[0.35em] text-[var(--foreground)] transition hover:text-[var(--accent)]"
-                  >
-                    {isPromptExpanded ? "Collapse prompt" : "Read full prompt"}
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
-                  Story controls
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {canToggleVisibility ? (
-                    <button
-                      type="button"
-                      onClick={handleVisibilityToggle}
-                      disabled={updatingVisibility}
-                      className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {updatingVisibility
-                        ? "Updating visibility…"
-                        : article.isPublic
-                          ? "Hide from gallery"
-                          : "Publish to gallery"}
-                    </button>
+                <div className="space-y-3">
+                  {editingTitle ? (
+                    <div className="space-y-3">
+                      <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
+                        Story title
+                      </label>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={titleDraft}
+                        onChange={(event) => setTitleDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            handleSaveTitle();
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleCancelEditTitle();
+                          }
+                        }}
+                        className="w-full rounded-[28px] border border-[var(--border)] bg-[var(--background)]/60 px-6 py-4 text-lg font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                        placeholder="Untitled story"
+                        disabled={savingTitle}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveTitle}
+                          disabled={savingTitle}
+                          className="rounded-full border border-[var(--border)] px-6 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {savingTitle ? "Saving title…" : "Save title"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditTitle}
+                          disabled={savingTitle}
+                          className="rounded-full border border-transparent px-6 py-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      {titleError && <p className="text-sm text-[var(--accent)]">{titleError}</p>}
+                    </div>
                   ) : (
-                    <p className="text-xs text-[var(--muted)]">
-                      Only the author can change the public status of this story.
-                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {canEditTitle && (
+                        <button
+                          type="button"
+                          onClick={handleBeginEditTitle}
+                          className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                        >
+                          Edit title
+                        </button>
+                      )}
+                      {canToggleVisibility ? (
+                        <button
+                          type="button"
+                          onClick={handleVisibilityToggle}
+                          disabled={updatingVisibility}
+                          className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {updatingVisibility
+                            ? "Updating visibility…"
+                            : article.isPublic
+                              ? "Hide from gallery"
+                              : "Publish to gallery"}
+                        </button>
+                      ) : (
+                        <p className="text-xs text-[var(--muted)]">
+                          Only the author can change the public status of this story.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 {updateMessage && (
@@ -415,11 +407,13 @@ function ArticleDetailPageContent() {
                     {updateMessage.text}
                   </p>
                 )}
-              </div>
+                </div>
 
-              <SourcePeek assets={sourceAssets} />
-            </div>
-          </section>
+                <div className="lg:flex-shrink-0">
+                  <SourcePeek assets={sourceAssets} />
+                </div>
+              </div>
+            </section>
         ) : null}
         {previewAsset && (
           <ImagePreviewModal
@@ -505,7 +499,7 @@ function MediaShowcase({
   );
 
   const baseClasses =
-    "relative rounded-[40px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft";
+    "relative rounded-[40px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft lg:flex lg:flex-col lg:min-h-0 lg:h-full";
 
   if (!hasMedia) {
     return (
@@ -524,15 +518,15 @@ function MediaShowcase({
     <div className={baseClasses}>
       <div
         ref={listRef}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-[32px] bg-[var(--background)]/30"
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-[32px] bg-[var(--background)]/30 lg:flex-1 lg:min-h-0"
         style={{ scrollSnapType: "x mandatory" }}
       >
         {assets.map((asset, index) => {
           const src = resolveUploadUrl(asset.key);
           if (!src) return null;
           return (
-            <div key={asset.id} className="relative min-w-full snap-center px-2 py-1">
-              <div className="relative flex h-[520px] w-full items-center justify-center rounded-[32px] bg-[var(--background)]/40">
+            <div key={asset.id} className="relative min-w-full snap-center px-2 py-1 lg:h-full">
+              <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center rounded-[32px] bg-[var(--background)]/40">
                 <img
                   src={src}
                   alt={title ?? "Article media"}
@@ -556,7 +550,7 @@ function MediaShowcase({
         })}
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex items-center justify-between lg:flex-shrink-0">
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
           Swipe to explore · media set
         </p>

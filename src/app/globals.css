@@ -76,6 +76,13 @@ body {
 	background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%);
 }
 
+@media (min-width: 1024px) {
+	.app-shell {
+		height: 100vh;
+		overflow: hidden;
+	}
+}
+
 .feed-grid {
 	display: grid;
 	gap: 1.5rem;
