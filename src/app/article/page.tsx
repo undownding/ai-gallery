@@ -247,11 +247,11 @@ function ArticleDetailPageContent() {
         </div>
 
         {loading ? (
-          <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 text-center text-sm text-[var(--muted)]">
+          <div className="rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
             Loading article…
           </div>
         ) : error ? (
-          <div className="space-y-4 rounded-4xl border border-(--border) bg-(--surface)/90 p-8 text-center text-sm text-(--muted) ">
+          <div className="space-y-4 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
             <p>{error}</p>
             <button
               type="button"
@@ -268,7 +268,7 @@ function ArticleDetailPageContent() {
                 title={article.title}
                 onViewAsset={setPreviewAsset}
               />
-              <div className="space-y-8 rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 shadow-soft lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+              <div className="space-y-8 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
                 <div className="lg:flex-shrink-0">
                   <AuthorBadge author={article.author} createdAt={metadata.created} />
                 </div>
@@ -342,7 +342,7 @@ function ArticleDetailPageContent() {
                             handleCancelEditTitle();
                           }
                         }}
-                        className="w-full rounded-[28px] border border-[var(--border)] bg-[var(--background)]/60 px-6 py-4 text-lg font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+                        className="w-full rounded-2xl border border-(--border)/40 bg-(--surface)/30 px-6 py-4 text-lg font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none backdrop-blur-md backdrop-saturate-150"
                         placeholder="Untitled story"
                         disabled={savingTitle}
                       />
@@ -430,7 +430,7 @@ function ArticleDetailPageContent() {
 function ArticlePageFallback() {
   return (
     <div className="app-shell px-4 pb-20 pt-10 sm:px-6 lg:px-12">
-      <div className="mx-auto w-full max-w-4xl rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-8 text-center text-sm text-[var(--muted)]">
+      <div className="mx-auto w-full max-w-4xl rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
         Loading story…
       </div>
     </div>
@@ -439,7 +439,7 @@ function ArticlePageFallback() {
 
 function DetailStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-[var(--foreground)]">
+    <div className="rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 text-[var(--foreground)] backdrop-blur-md backdrop-saturate-150">
       <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
       <p className="text-2xl font-semibold">{value}</p>
     </div>
@@ -499,7 +499,7 @@ function MediaShowcase({
   );
 
   const baseClasses =
-    "relative rounded-[40px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft lg:flex lg:flex-col lg:min-h-0 lg:h-full";
+    "relative border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full";
 
   if (!hasMedia) {
     return (
@@ -514,23 +514,45 @@ function MediaShowcase({
     );
   }
 
+  const showNavigation = assets.length > 1;
+
   return (
     <div className={baseClasses}>
       <div
         ref={listRef}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-[32px] bg-[var(--background)]/30 lg:flex-1 lg:min-h-0"
+        className="relative flex snap-x snap-mandatory overflow-x-auto bg-[var(--background)]/30 lg:flex-1 lg:min-h-0"
         style={{ scrollSnapType: "x mandatory" }}
       >
+        {showNavigation && (
+          <>
+            <button
+              type="button"
+              onClick={() => handleNavigate(-1)}
+              className="absolute left-4 top-1/2 z-10 -translate-y-1/2 size-10 rounded-full border border-white/40 bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+              aria-label="Previous image"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => handleNavigate(1)}
+              className="absolute right-4 top-1/2 z-10 -translate-y-1/2 size-10 rounded-full border border-white/40 bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+              aria-label="Next image"
+            >
+              →
+            </button>
+          </>
+        )}
         {assets.map((asset, index) => {
           const src = resolveUploadUrl(asset.key);
           if (!src) return null;
           return (
             <div key={asset.id} className="relative min-w-full snap-center px-2 py-1 lg:h-full">
-              <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center rounded-[32px] bg-[var(--background)]/40">
+              <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center bg-[var(--background)]/40">
                 <img
                   src={src}
                   alt={title ?? "Article media"}
-                  className="max-h-full w-full rounded-[32px] object-contain"
+                  className="max-h-full max-w-full object-contain"
                 />
                 {onViewAsset && (
                   <button
@@ -554,22 +576,6 @@ function MediaShowcase({
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
           Swipe to explore · media set
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => handleNavigate(-1)}
-            className="size-10 rounded-full border border-[var(--border)] text-[var(--foreground)] transition hover:border-[var(--accent)]"
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNavigate(1)}
-            className="size-10 rounded-full border border-[var(--border)] text-[var(--foreground)] transition hover:border-[var(--accent)]"
-          >
-            →
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -595,7 +601,7 @@ function ImagePreviewModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl rounded-[36px] border border-[var(--border)] bg-[var(--surface)]/95 p-6 shadow-2xl"
+        className="relative w-full max-w-5xl rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-6 shadow-2xl backdrop-blur-md backdrop-saturate-150"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -634,7 +640,7 @@ function SourcePeek({ assets }: { assets: ArticleAsset[] }) {
               key={asset.id}
               src={src}
               alt="Source reference"
-              className="h-20 w-20 rounded-2xl border border-[var(--border)] object-cover"
+              className="h-20 w-20 rounded-2xl border border-(--border)/40 object-cover"
             />
           );
         })}
