@@ -705,7 +705,7 @@ export default function GeneratePage() {
                   label="Image selection"
                   description="Optional. Attach up to eight guiding shots. Files persist immediately and stay in a single scroll row."
                 >
-                  <div className="rounded-[30px] border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-5">
+                  <div className="w-full max-w-full rounded-[30px] border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm text-[var(--muted)]">
                         PNG, JPG, or WEBP · {referenceUploads.length}/{MAX_REFERENCES} linked
@@ -724,7 +724,7 @@ export default function GeneratePage() {
                       </label>
                     </div>
 
-                    <div className="mt-4 overflow-x-auto pb-2">
+                    <div className="mt-4 w-full overflow-x-auto pb-2">
                       <div className="flex min-h-[12rem] gap-4">
                         {referenceUploads.map((asset) => {
                           const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
