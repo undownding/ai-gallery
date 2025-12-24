@@ -29,6 +29,89 @@ export default function ArticleDetailPage() {
   );
 }
 
+function ArticleDetailSkeleton() {
+  // 在客户端立即初始化主题（不创建状态）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("ai-gallery-theme");
+    if (stored === "light" || stored === "dark") {
+      document.documentElement.dataset.theme = stored;
+    }
+  }, []);
+  
+  return (
+    <section className="grid gap-8 min-h-[600px] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:flex-1 lg:min-h-0 lg:h-full lg:grid-rows-1">
+      {/* MediaShowcase Skeleton */}
+      <div className="relative border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+        <div className="relative flex snap-x snap-mandatory overflow-x-auto bg-[var(--background)]/30 lg:flex-1 lg:min-h-0">
+          <div className="relative min-w-full snap-center px-2 py-1 lg:h-full">
+            <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center bg-[var(--background)]/40">
+              <div className="h-full w-full animate-pulse bg-gray-200 rounded-lg" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center justify-between lg:flex-shrink-0">
+          <div className="h-3 w-48 animate-pulse bg-gray-200 rounded" />
+        </div>
+      </div>
+
+      {/* Content Panel Skeleton */}
+      <div className="space-y-8 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+        {/* AuthorBadge Skeleton */}
+        <div className="lg:flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 animate-pulse rounded-full bg-gray-200" />
+            <div className="space-y-2">
+              <div className="h-3 w-16 animate-pulse bg-gray-200 rounded" />
+              <div className="h-5 w-32 animate-pulse bg-gray-200 rounded" />
+              <div className="h-3 w-40 animate-pulse bg-gray-200 rounded" />
+            </div>
+          </div>
+        </div>
+
+        {/* Prompt Digest Skeleton */}
+        <div className="space-y-3 lg:flex-1 lg:flex lg:flex-col lg:min-h-0">
+          <div className="space-y-3">
+            <div className="h-3 w-32 animate-pulse bg-gray-200 rounded" />
+            <div className="h-10 w-full animate-pulse bg-gray-200 rounded" />
+            <div className="space-y-2 lg:flex-1 lg:overflow-y-auto">
+              <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
+              <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
+              <div className="h-4 w-5/6 animate-pulse bg-gray-200 rounded" />
+              <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
+              <div className="h-4 w-4/5 animate-pulse bg-gray-200 rounded" />
+            </div>
+          </div>
+        </div>
+
+        {/* Story Controls Skeleton */}
+        <div className="space-y-3 lg:flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="h-3 w-28 animate-pulse bg-gray-200 rounded" />
+            <div className="h-6 w-20 animate-pulse bg-gray-200 rounded-full" />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="h-10 w-24 animate-pulse bg-gray-200 rounded-full" />
+            <div className="h-10 w-32 animate-pulse bg-gray-200 rounded-full" />
+          </div>
+        </div>
+
+        {/* SourcePeek Skeleton */}
+        <div className="lg:flex-shrink-0">
+          <div className="space-y-3">
+            <div className="h-3 w-36 animate-pulse bg-gray-200 rounded" />
+            <div className="flex items-center gap-3">
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
+              <div className="h-20 w-20 animate-pulse bg-gray-200 rounded-2xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ArticleDetailPageContent() {
   const searchParams = useSearchParams();
   const requestedArticleId = searchParams.get("id");
@@ -247,9 +330,7 @@ function ArticleDetailPageContent() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
-            Loading article…
-          </div>
+          <ArticleDetailSkeleton />
         ) : error ? (
           <div className="space-y-4 rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
             <p>{error}</p>
@@ -499,7 +580,7 @@ function MediaShowcase({
   );
 
   const baseClasses =
-    "relative border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full";
+    "relative rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full";
 
   if (!hasMedia) {
     return (
