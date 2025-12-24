@@ -757,9 +757,9 @@ export default function GeneratePage() {
               {sessionError && <p className="mt-3 text-xs text-[var(--accent)]">{sessionError}</p>}
             </div>
           ) : (
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
               <form
-                className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2"
+                className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2 lg:self-stretch lg:min-h-0"
                 onSubmit={(event) => event.preventDefault()}
               >
                 <FieldGroup
@@ -832,6 +832,7 @@ export default function GeneratePage() {
                 <FieldGroup
                   label="Prompt"
                   description="Describe mood, composition, and stylistic cues. This text is required."
+                  className="lg:flex-1 lg:min-h-0"
                 >
                   <textarea
                     value={prompt}
@@ -839,7 +840,7 @@ export default function GeneratePage() {
                     rows={6}
                     placeholder="e.g., Neon-drenched street market in Chongqing, rain-kissed pavement, anamorphic lens flares, f/1.4 depth"
                     disabled={status === "running"}
-                    className="w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="min-h-[12rem] w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 lg:flex-1 lg:min-h-0"
                   />
                 </FieldGroup>
 
@@ -867,7 +868,7 @@ export default function GeneratePage() {
                 </div>
               </form>
 
-              <aside className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2">
+              <aside className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2 lg:self-stretch lg:min-h-0">
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
                   <Think
                     title={status === "running" ? "Deep thinking" : "Complete thinking"}
@@ -890,9 +891,13 @@ export default function GeneratePage() {
                   <div className="relative z-10 space-y-4">
                     <h2 className="text-lg font-semibold">Latest frame</h2>
                     {generatedImageUrl ? (
-                      <div className="overflow-hidden rounded-[28px] border border-[var(--border)] bg-black/10">
+                      <div className="flex h-64 items-center justify-center overflow-hidden rounded-[28px] border border-[var(--border)] bg-black/10">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={generatedImageUrl} alt="Generated" className="w-full" />
+                        <img
+                          src={generatedImageUrl}
+                          alt="Generated"
+                          className="max-h-full max-w-full object-contain"
+                        />
                       </div>
                     ) : (
                       <div className="flex h-64 flex-col items-center justify-center rounded-[28px] border border-dashed border-[var(--border)] bg-[var(--surface)]/60 text-center text-sm text-[var(--muted)]">
@@ -1155,13 +1160,15 @@ function FieldGroup({
   label,
   description,
   children,
+  className,
 }: {
   label: string;
   description?: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
       <div>
         <p className="text-sm font-semibold text-[var(--foreground)]">{label}</p>
         {description && <p className="text-xs text-[var(--muted)]">{description}</p>}
