@@ -805,21 +805,35 @@ export default function GeneratePage() {
               </form>
 
               <aside className="flex flex-col gap-6">
-                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft">
+                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
                   <Think
                     title="Think"
-                    loading={status === "running"}
+                    loading={
+                      status === "running" ? (
+                        <svg
+                          style={{ fontSize: 12, animation: "spin 1s linear infinite" }}
+                          viewBox="0 0 1024 1024"
+                          fill="currentColor"
+                          width="1em"
+                          height="1em"
+                        >
+                          <path d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C637 83.6 579.4 72 520 72s-117 11.6-171.3 34.6a440.45 440.45 0 0 0-139.9 94.3 437.71 437.71 0 0 0-94.3 139.9C83.6 403 72 460.6 72 520c0 19.9-16.1 36-36 36s-36-16.1-36-36c0-59.4 11.6-117 34.6-171.3a440.45 440.45 0 0 0 94.3-139.9 437.71 437.71 0 0 0 139.9-94.3C403 83.6 460.6 72 520 72s117 11.6 171.3 34.6a440.45 440.45 0 0 0 139.9 94.3 437.71 437.71 0 0 0 94.3 139.9C948.4 403 960 460.6 960 520c0 19.9-16.1 36-36 36z" />
+                        </svg>
+                      ) : (
+                        false
+                      )
+                    }
                     blink={status === "running"}
                   >
                     <div
                       ref={thinkScrollRef}
-                      className="h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)] thin-scrollbar"
+                      className="mt-2 h-72 overflow-y-auto text-sm text-[var(--foreground)] thin-scrollbar"
                     >
                       {streamedText ? (
                         <StableMarkdownTypewriter
                           stableKey={typewriterSessionKey}
                           motionProps={{
-                            className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
+                            className: "space-y-2 text-sm leading-relaxed text-[var(--foreground)]",
                             onAnimationComplete: () => {
                               console.log("Typewriter finished");
                             },
