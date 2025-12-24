@@ -42,7 +42,7 @@ function ArticleDetailSkeleton() {
   return (
     <section className="grid gap-8 min-h-[600px] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:flex-1 lg:min-h-0 lg:h-full lg:grid-rows-1">
       {/* MediaShowcase Skeleton */}
-      <div className="relative border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
+      <div className="relative rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-4 shadow-soft backdrop-blur-md backdrop-saturate-150 lg:flex lg:flex-col lg:min-h-0 lg:h-full">
         <div className="relative flex snap-x snap-mandatory overflow-x-auto bg-[var(--background)]/30 lg:flex-1 lg:min-h-0">
           <div className="relative min-w-full snap-center px-2 py-1 lg:h-full">
             <div className="relative flex h-[520px] lg:h-full w-full items-center justify-center bg-[var(--background)]/40">
@@ -503,7 +503,7 @@ function ArticleDetailPageContent() {
                 {updateMessage && (
                   <p
                     className={`text-sm ${
-                      updateMessage.type === "success" ? "text-emerald-500" : "text-[var(--accent)]"
+                      updateMessage.type === "success" ? "textemerald-500" : "text-[var(--accent)]"
                     }`}
                   >
                     {updateMessage.text}

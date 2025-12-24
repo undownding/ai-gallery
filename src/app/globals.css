@@ -88,7 +88,8 @@ body {
 	}
 }
 
-.article-card {
+.article-card,
+.article-card-skeleton {
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
@@ -97,8 +98,11 @@ body {
 	border: 1px solid var(--border);
 	padding: 1rem;
 	text-align: left;
-	transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 	color: inherit;
+}
+
+.article-card {
+	transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .article-card:hover {
@@ -113,15 +117,6 @@ body {
 }
 
 .article-card-skeleton {
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	border-radius: 28px;
-	background: var(--surface);
-	border: 1px solid var(--border);
-	padding: 1rem;
-	text-align: left;
-	color: inherit;
 	pointer-events: none;
 	user-select: none;
 	animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;

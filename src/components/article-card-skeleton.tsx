@@ -1,6 +1,6 @@
 export function ArticleCardSkeleton() {
   return (
-    <div className="article-card-skeleton">
+    <div className="article-card article-card-skeleton">
       <div className="card-media">
         <div className="h-full w-full bg-(--muted)/20" />
       </div>
