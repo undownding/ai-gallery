@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
 import { StableMarkdownTypewriter } from "@/components/stable-markdown-typewriter";
+import { Think } from "@ant-design/x";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 import {
   AUTH_POPUP_MESSAGE,
@@ -805,39 +806,39 @@ export default function GeneratePage() {
 
               <aside className="flex flex-col gap-6">
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Think</h2>
-                    <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
-                      {statusLabel(status)}
-                    </span>
-                  </div>
-                  <div
-                    ref={thinkScrollRef}
-                    className="mt-4 h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)] thin-scrollbar"
+                  <Think
+                    title="Think"
+                    loading={status === "running"}
+                    blink={status === "running"}
                   >
-                    {streamedText ? (
-                      <StableMarkdownTypewriter
-                        stableKey={typewriterSessionKey}
-                        motionProps={{
-                          className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
-                          onAnimationComplete: () => {
-                            console.log("Typewriter finished");
-                          },
-                          characterVariants: {
-                            hidden: { opacity: 0 },
-                            visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
-                          },
-                          onCharacterAnimationComplete: scrollToEnd,
-                        }}
-                      >
-                        {streamedText}
-                      </StableMarkdownTypewriter>
-                    ) : (
-                      <p className="text-xs text-[var(--muted)]">
-                        The narration feed prints here once the stream starts.
-                      </p>
-                    )}
-                  </div>
+                    <div
+                      ref={thinkScrollRef}
+                      className="h-72 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--background)]/35 p-4 text-sm text-[var(--foreground)] thin-scrollbar"
+                    >
+                      {streamedText ? (
+                        <StableMarkdownTypewriter
+                          stableKey={typewriterSessionKey}
+                          motionProps={{
+                            className: "space-y-3 text-sm leading-relaxed text-[var(--foreground)]",
+                            onAnimationComplete: () => {
+                              console.log("Typewriter finished");
+                            },
+                            characterVariants: {
+                              hidden: { opacity: 0 },
+                              visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
+                            },
+                            onCharacterAnimationComplete: scrollToEnd,
+                          }}
+                        >
+                          {streamedText}
+                        </StableMarkdownTypewriter>
+                      ) : (
+                        <p className="text-xs text-[var(--muted)]">
+                          The narration feed prints here once the stream starts.
+                        </p>
+                      )}
+                    </div>
+                  </Think>
                 </div>
 
                 <div className="relative overflow-hidden rounded-[32px] border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--background)] p-6 shadow-soft">
