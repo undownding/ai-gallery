@@ -771,7 +771,7 @@ export default function GeneratePage() {
                       </label>
                     </div>
 
-                    <div className="mt-4 min-w-0 w-full overflow-x-auto pb-2">
+                    <div className="mt-4 min-w-0 w-full max-w-full overflow-x-auto pb-2">
                       <div className="flex min-h-[12rem] flex-nowrap gap-4">
                         {referenceUploads.map((asset) => {
                           const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
