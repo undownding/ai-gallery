@@ -6,8 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
-import { StableMarkdownTypewriter } from "@/components/stable-markdown-typewriter";
 import { Think } from "@ant-design/x";
+import { SyncOutlined } from "@ant-design/icons";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 import {
   AUTH_POPUP_MESSAGE,
@@ -23,7 +23,6 @@ import {
 import { buildApiUrl, safeReadError } from "@/lib/http";
 
 const MAX_REFERENCES = 8;
-const nextTypewriterKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 const aspectRatioPresets: { value: AspectRatio; label: string; hint: string }[] = [
   { value: "1:1", label: "Square", hint: "Album covers, avatars" },
@@ -105,7 +104,6 @@ export default function GeneratePage() {
   const [themeMode, setThemeMode] = useThemePreference();
   const [streamedText, setStreamedText] = useState<string>("");
   const [generationDuration, setGenerationDuration] = useState(0);
-  const [typewriterSessionKey, setTypewriterSessionKey] = useState(() => nextTypewriterKey());
   const dismissError = useCallback(() => setErrorMessage(null), []);
 
   const pathname = usePathname();
@@ -119,17 +117,10 @@ export default function GeneratePage() {
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const thinkScrollRef = useRef<HTMLDivElement | null>(null);
   const hasImageChunkRef = useRef(false);
-
-  const scrollToEnd = useCallback(() => {
-    if (!thinkScrollRef.current) return;
-    thinkScrollRef.current.scrollTop = thinkScrollRef.current.scrollHeight;
-  }, []);
 
   const resetStreamedNarration = useCallback(() => {
     setStreamedText("");
-    setTypewriterSessionKey(nextTypewriterKey());
   }, []);
 
   const clearRedirectTimers = useCallback(() => {
@@ -184,9 +175,6 @@ export default function GeneratePage() {
     }
   }, [status]);
 
-  useEffect(() => {
-    scrollToEnd();
-  }, [streamedText, scrollToEnd]);
 
   useEffect(() => {
     let active = true;
@@ -710,7 +698,7 @@ export default function GeneratePage() {
                       <p className="text-sm text-[var(--muted)]">
                         PNG, JPG, or WEBP · {referenceUploads.length}/{MAX_REFERENCES} linked
                       </p>
-                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                      <label className={`inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition ${status === "running" ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -718,14 +706,14 @@ export default function GeneratePage() {
                           multiple
                           onChange={handleFileSelection}
                           className="sr-only"
-                          disabled={referenceUploads.length >= MAX_REFERENCES || uploadingFiles}
+                          disabled={referenceUploads.length >= MAX_REFERENCES || uploadingFiles || status === "running"}
                         />
                         {uploadingFiles ? "Uploading..." : "Add references"}
                       </label>
                     </div>
 
-                    <div className="mt-4 w-full overflow-x-auto pb-2">
-                      <div className="flex min-h-[12rem] gap-4">
+                    <div className="mt-4 min-w-0 w-full overflow-x-auto pb-2">
+                      <div className="flex min-h-[12rem] flex-nowrap gap-4">
                         {referenceUploads.map((asset) => {
                           const preview = asset.previewUrl ?? resolveUploadUrl(asset.key);
                           return (
@@ -748,7 +736,8 @@ export default function GeneratePage() {
                               <button
                                 type="button"
                                 onClick={() => removeReference(asset.id)}
-                                className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-sm"
+                                disabled={status === "running"}
+                                className="absolute right-3 top-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/90 px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Remove
                               </button>
@@ -776,7 +765,8 @@ export default function GeneratePage() {
                     onChange={(event) => setPrompt(event.target.value)}
                     rows={6}
                     placeholder="e.g., Neon-drenched street market in Chongqing, rain-kissed pavement, anamorphic lens flares, f/1.4 depth"
-                    className="w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)]"
+                    disabled={status === "running"}
+                    className="w-full resize-none rounded-3xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-sm text-[var(--foreground)] shadow-inner outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </FieldGroup>
 
@@ -807,53 +797,17 @@ export default function GeneratePage() {
               <aside className="flex flex-col gap-6">
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
                   <Think
-                    title="Think"
-                    expanded={false}
+                    title={status === "running" ? "Deep thinking" : "Complete thinking"}
                     loading={
                       status === "running" ? (
-                        <svg
-                          style={{ fontSize: 12, animation: "spin 1s linear infinite" }}
-                          viewBox="0 0 1024 1024"
-                          fill="currentColor"
-                          width="1em"
-                          height="1em"
-                        >
-                          <path d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C637 83.6 579.4 72 520 72s-117 11.6-171.3 34.6a440.45 440.45 0 0 0-139.9 94.3 437.71 437.71 0 0 0-94.3 139.9C83.6 403 72 460.6 72 520c0 19.9-16.1 36-36 36s-36-16.1-36-36c0-59.4 11.6-117 34.6-171.3a440.45 440.45 0 0 0 94.3-139.9 437.71 437.71 0 0 0 139.9-94.3C403 83.6 460.6 72 520 72s117 11.6 171.3 34.6a440.45 440.45 0 0 0 139.9 94.3 437.71 437.71 0 0 0 94.3 139.9C948.4 403 960 460.6 960 520c0 19.9-16.1 36-36 36z" />
-                        </svg>
+                        <SyncOutlined style={{ fontSize: 12, animation: "spin 1s linear infinite" }} />
                       ) : (
                         false
                       )
                     }
                     blink={status === "running"}
                   >
-                    <div
-                      ref={thinkScrollRef}
-                      className="mt-2 overflow-y-auto text-sm text-[var(--foreground)] thin-scrollbar"
-                    >
-                      {streamedText ? (
-                        <StableMarkdownTypewriter
-                          stableKey={typewriterSessionKey}
-                          motionProps={{
-                            className: "space-y-2 text-sm leading-relaxed text-[var(--foreground)]",
-                            style: { overflowY: "visible" },
-                            onAnimationComplete: () => {
-                              console.log("Typewriter finished");
-                            },
-                            characterVariants: {
-                              hidden: { opacity: 0 },
-                              visible: { opacity: 1, transition: { opacity: { duration: 0 } } },
-                            },
-                            onCharacterAnimationComplete: scrollToEnd,
-                          }}
-                        >
-                          {streamedText}
-                        </StableMarkdownTypewriter>
-                      ) : (
-                        <p className="text-xs text-[var(--muted)]">
-                          The narration feed prints here once the stream starts.
-                        </p>
-                      )}
-                    </div>
+                    {streamedText || "The narration feed prints here once the stream starts."}
                   </Think>
                 </div>
 
