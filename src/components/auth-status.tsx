@@ -161,7 +161,7 @@ export function AuthStatus({ redirectTo }: AuthStatusProps) {
     setLogoutPending(false);
   }, []);
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div className="inline-flex h-12 items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-5 text-sm font-semibold text-[var(--muted)]">
         <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--muted)]" aria-hidden />
