@@ -359,9 +359,54 @@ function ArticleDetailPageContent() {
                     <p className="text-[11px] uppercase tracking-[0.4em] text-[var(--muted)]">
                       Prompt digest
                     </p>
-                    <h2 className="font-serif text-3xl leading-snug text-[var(--foreground)] sm:text-4xl">
-                      {article.title ?? "Untitled concept"}
-                    </h2>
+                    {editingTitle && canEditTitle ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={titleDraft}
+                            onChange={(event) => setTitleDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                handleSaveTitle();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                handleCancelEditTitle();
+                              }
+                            }}
+                            className="w-full rounded-2xl border border-(--border)/40 bg-(--surface)/30 px-5 py-3 text-2xl font-serif leading-snug text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none backdrop-blur-md backdrop-saturate-150 sm:text-3xl"
+                            placeholder="Untitled concept"
+                            disabled={savingTitle}
+                          />
+                          <div className="flex items-center gap-2 sm:shrink-0">
+                            <button
+                              type="button"
+                              onClick={handleSaveTitle}
+                              disabled={savingTitle}
+                              className="rounded-full border border-[var(--border)] px-5 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {savingTitle ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEditTitle}
+                              disabled={savingTitle}
+                              className="rounded-full border border-transparent px-4 py-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                        {titleError && <p className="text-sm text-[var(--accent)]">{titleError}</p>}
+                      </div>
+                    ) : (
+                      <h2 className="font-serif text-2xl leading-snug text-[var(--foreground)] sm:text-3xl">
+                        {article.title ?? "Untitled concept"}
+                      </h2>
+                    )}
                     <div
                       className={`relative text-base leading-relaxed text-[var(--foreground)] lg:flex-1 lg:overflow-y-auto ${
                         promptIsLong && !isPromptExpanded ? "max-h-72 overflow-hidden pr-4 lg:max-h-none" : ""
@@ -403,81 +448,38 @@ function ArticleDetailPageContent() {
                   )}
                 </div>
                 <div className="space-y-3">
-                  {editingTitle ? (
-                    <div className="space-y-3">
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[var(--muted)]">
-                        Story title
-                      </label>
-                      <input
-                        type="text"
-                        autoFocus
-                        value={titleDraft}
-                        onChange={(event) => setTitleDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            handleSaveTitle();
-                          }
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            handleCancelEditTitle();
-                          }
-                        }}
-                        className="w-full rounded-2xl border border-(--border)/40 bg-(--surface)/30 px-6 py-4 text-lg font-serif text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none backdrop-blur-md backdrop-saturate-150"
-                        placeholder="Untitled story"
-                        disabled={savingTitle}
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={handleSaveTitle}
-                          disabled={savingTitle}
-                          className="rounded-full border border-[var(--border)] px-6 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {savingTitle ? "Saving title…" : "Save title"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelEditTitle}
-                          disabled={savingTitle}
-                          className="rounded-full border border-transparent px-6 py-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      {titleError && <p className="text-sm text-[var(--accent)]">{titleError}</p>}
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-3">
-                      {canEditTitle && (
-                        <button
-                          type="button"
-                          onClick={handleBeginEditTitle}
-                          className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                        >
-                          Edit title
-                        </button>
-                      )}
-                      {canToggleVisibility ? (
-                        <button
-                          type="button"
-                          onClick={handleVisibilityToggle}
-                          disabled={updatingVisibility}
-                          className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {updatingVisibility
-                            ? "Updating visibility…"
-                            : article.isPublic
-                              ? "Hide from gallery"
-                              : "Publish to gallery"}
-                        </button>
-                      ) : (
-                        <p className="text-xs text-[var(--muted)]">
-                          Only the author can change the public status of this story.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-3">
+                    {canEditTitle && !editingTitle && (
+                      <button
+                        type="button"
+                        onClick={handleBeginEditTitle}
+                        className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        Edit title
+                      </button>
+                    )}
+                    {canToggleVisibility ? (
+                      <button
+                        type="button"
+                        onClick={handleVisibilityToggle}
+                        disabled={updatingVisibility}
+                        className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {updatingVisibility
+                          ? "Updating visibility…"
+                          : article.isPublic
+                            ? "Hide from gallery"
+                            : "Publish to gallery"}
+                      </button>
+                    ) : (
+                      <p className="text-xs text-[var(--muted)]">
+                        Only the author can change the public status of this story.
+                      </p>
+                    )}
+                    {editingTitle && (
+                      <p className="text-xs text-[var(--muted)]">Editing title above…</p>
+                    )}
+                  </div>
                 </div>
                 {updateMessage && (
                   <p
