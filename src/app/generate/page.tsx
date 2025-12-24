@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
@@ -21,6 +21,7 @@ import {
   type SessionUser,
 } from "@/lib/client-session";
 import { buildApiUrl, safeReadError } from "@/lib/http";
+import type { ArticleAsset, ArticleDetail } from "@/types/articles";
 
 const MAX_REFERENCES = 8;
 
@@ -51,6 +52,8 @@ type UploadRecord = {
 type ReferenceAsset = UploadRecord & { previewUrl?: string };
 
 type StreamStatus = "idle" | "running" | "success" | "error";
+
+type PrefillMode = "rerun" | "remix";
 
 type ArticleCreationState =
   | { status: "idle" }
@@ -150,6 +153,26 @@ function useAnimatedText(text: string) {
 }
 
 export default function GeneratePage() {
+  return (
+    <Suspense fallback={<GeneratePageFallback />}>
+      <GeneratePageContent />
+    </Suspense>
+  );
+}
+
+function GeneratePageFallback() {
+  return (
+    <div className="app-shell px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
+        <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/80 p-10 text-center text-sm text-[var(--muted)] shadow-soft">
+          正在加载生成器…
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GeneratePageContent() {
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">("");
   const [imageSize, setImageSize] = useState<ImageSize | "">("");
@@ -178,6 +201,7 @@ export default function GeneratePage() {
 
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const controllerRef = useRef<AbortController | null>(null);
   const articlePersistControllerRef = useRef<AbortController | null>(null);
@@ -188,6 +212,7 @@ export default function GeneratePage() {
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasImageChunkRef = useRef(false);
+  const prefillAppliedKeyRef = useRef<string | null>(null);
 
   const resetStreamedNarration = useCallback(() => {
     setStreamedText("");
@@ -343,10 +368,91 @@ export default function GeneratePage() {
     return lastId ? [lastId] : [];
   }, [generatedUploads]);
 
+  const currentPathWithSearch = useMemo(() => {
+    const base = pathname && pathname.startsWith("/") ? pathname : "/generate";
+    const query = searchParams?.toString?.() ?? "";
+    return query ? `${base}?${query}` : base;
+  }, [pathname, searchParams]);
+
+  const prefillArticleId = useMemo(() => {
+    const raw = searchParams?.get?.("articleId") ?? null;
+    return raw && raw.trim() ? raw.trim() : null;
+  }, [searchParams]);
+
+  const prefillMode = useMemo<PrefillMode>(() => {
+    const raw = (searchParams?.get?.("mode") ?? "").toLowerCase();
+    return raw === "remix" ? "remix" : "rerun";
+  }, [searchParams]);
+
   const inlineLoginTarget = useMemo(() => {
-    const candidate = pathname && pathname.startsWith("/") ? pathname : "/generate";
-    return sanitizeRedirectPath(candidate, "/generate");
-  }, [pathname]);
+    return sanitizeRedirectPath(currentPathWithSearch, "/generate");
+  }, [currentPathWithSearch]);
+
+  const toReferenceAssets = useCallback(
+    (assets: ArticleAsset[] | null | undefined, articleId: string) => {
+      const list = Array.isArray(assets) ? assets : [];
+      return list.slice(0, MAX_REFERENCES).map((asset) => ({
+        id: asset.id,
+        key: asset.key,
+        eTag: asset.eTag ?? undefined,
+        createdAt: asset.createdAt,
+        articleId,
+      }));
+    },
+    [],
+  );
+
+  const loadArticleForPrefill = useCallback(async (articleId: string) => {
+    const response = await fetch(buildApiUrl(`/articles/${articleId}`), {
+      cache: "no-store",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const message = (await safeReadError(response)) ?? "Unable to load article.";
+      throw new Error(message);
+    }
+    const payload = (await response.json()) as unknown;
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Article response missing data.");
+    }
+    const data =
+      payload && typeof payload === "object" && "data" in (payload as Record<string, unknown>)
+        ? ((payload as { data?: ArticleDetail | null }).data ?? null)
+        : (payload as ArticleDetail | null);
+    if (!data?.id) {
+      throw new Error("Article not found.");
+    }
+    return data;
+  }, []);
+
+  useEffect(() => {
+    if (!prefillArticleId) return;
+    if (status === "running") return;
+    const applyKey = `${prefillArticleId}:${prefillMode}`;
+    if (prefillAppliedKeyRef.current === applyKey) return;
+
+    let active = true;
+    (async () => {
+      try {
+        const article = await loadArticleForPrefill(prefillArticleId);
+        if (!active) return;
+
+        setPrompt(article.text ?? "");
+        const assets = prefillMode === "remix" ? article.media : article.sources;
+        setReferenceUploads(toReferenceAssets(assets, article.id));
+        prefillAppliedKeyRef.current = applyKey;
+      } catch (issue) {
+        if (!active) return;
+        setErrorMessage(
+          issue instanceof Error ? issue.message : "Unable to prefill from the article.",
+        );
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [prefillArticleId, prefillMode, loadArticleForPrefill, status, toReferenceAssets]);
 
   const handleInlineLogin = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -715,7 +821,7 @@ export default function GeneratePage() {
             </div>
             <div className="pointer-events-auto absolute right-3 top-3 z-20 flex flex-col gap-2 sm:right-6 sm:top-6 sm:flex-row sm:gap-3">
               <ThemeToggle mode={themeMode} onChange={setThemeMode} />
-              <AuthStatus redirectTo={pathname ?? "/generate"} />
+              <AuthStatus redirectTo={currentPathWithSearch} />
             </div>
             <div className="relative z-10 flex flex-col gap-8 pt-16 sm:pt-20">
               <div className="space-y-3 max-w-3xl">

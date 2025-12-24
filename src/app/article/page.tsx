@@ -204,6 +204,7 @@ function ArticleDetailPageContent() {
   const authorLogin = article?.author?.login;
   const userId = sessionUser?.id;
   const userLogin = sessionUser?.login;
+  const isCreator = Boolean(sessionUser?.isCreator);
   const canManageStory = Boolean(
     article &&
     sessionUser &&
@@ -480,6 +481,24 @@ function ArticleDetailPageContent() {
                       <p className="text-xs text-[var(--muted)]">Editing title above…</p>
                     )}
                   </div>
+                  {isCreator && article && (
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/generate?articleId=${article.id}&mode=rerun`)}
+                        className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        ReRun
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/generate?articleId=${article.id}&mode=remix`)}
+                        className="rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        ReMix
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {updateMessage && (
                   <p
