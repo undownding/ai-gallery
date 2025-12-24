@@ -143,43 +143,25 @@ export default function Home() {
     <>
       <div className="app-shell px-4 pb-16 pt-10 sm:px-6 lg:px-10">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-          <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/90 p-6 shadow-soft backdrop-blur">
+          <header className="rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-6 backdrop-blur-md backdrop-saturate-150">
             <div className="flex flex-wrap items-start justify-between gap-6">
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                  AI Gallery
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-(--muted)">
+                  Banana Gallery
                 </p>
-                <h1 className="text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
-                  City stories in your pocket
+                <h1 className="text-3xl font-semibold text-foreground sm:text-4xl">
+                  Sharing your banana life
                 </h1>
-                <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">{heroSubtitle}</p>
+                <p className="max-w-2xl text-sm text-(--muted) sm:text-base">{heroSubtitle}</p>
               </div>
               <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <ThemeToggle mode={themeMode} onChange={setThemeMode} />
                 <AuthStatus redirectTo={pathname ?? "/"} />
               </div>
             </div>
-            <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
-              <HeroStat label="Stories live" value={articles.length} />
-              <HeroStat label="Shots archived" value={totalShots} />
-              <HeroStat label="Status" value={hasMore ? "Streaming" : "Up to date"} />
-            </div>
           </header>
 
           <section className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--muted)]">
-              <span>
-                Showing {articles.length} article{articles.length === 1 ? "" : "s"} · {totalShots}{" "}
-                media
-              </span>
-              <button
-                type="button"
-                onClick={() => fetchPage(null)}
-                className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-              >
-                Refresh feed
-              </button>
-            </div>
 
             <div className="feed-grid">
               {articles.map((article) => (
@@ -190,18 +172,18 @@ export default function Home() {
             {error && <div className="alert-card">{error}</div>}
 
             {!articles.length && initialized && !loading && !error && (
-              <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-8 text-center text-sm text-[var(--muted)]">
+              <div className="rounded-2xl border border-dashed border-(--border) bg-(--surface)/70 p-8 text-center text-sm text-(--muted)">
                 No public articles yet. Be the first to drop a story.
               </div>
             )}
 
-            <div className="flex flex-col items-center gap-3 text-xs text-[var(--muted)]">
+            <div className="flex flex-col items-center gap-3 text-xs text-(--muted)">
               {loading && <span>Loading more stories...</span>}
               {hasMore && !loading && (
                 <button
                   type="button"
                   onClick={requestMore}
-                  className="rounded-full border border-[var(--border)] px-6 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  className="rounded-full border border-(--border) px-6 py-2 text-xs font-semibold text-foreground transition-colors hover:border-(--accent) hover:text-(--accent)"
                 >
                   Load more
                 </button>
@@ -222,14 +204,5 @@ export default function Home() {
         </a>
       )}
     </>
-  );
-}
-
-function HeroStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 text-[var(--foreground)]">
-      <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
   );
 }

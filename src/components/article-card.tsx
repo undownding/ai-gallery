@@ -22,11 +22,11 @@ export function ArticleCard({ article, onSelect }: ArticleCardProps) {
         <span className="card-chip">{formatDate(article.createdAt)}</span>
       </div>
       <div className="flex flex-col gap-2 text-left">
-        <h3 className="text-base font-semibold text-[var(--foreground)]">
+        <h3 className="text-base font-semibold text-foreground">
           {article.title ?? "Untitled story"}
         </h3>
-        <p className="line-clamp-3 text-sm text-[var(--muted)]">{article.text}</p>
-        <div className="flex items-center justify-between text-xs text-[var(--muted)]">
+        <p className="line-clamp-3 text-sm text-(--muted)">{article.text}</p>
+        <div className="flex items-center justify-between text-xs text-(--muted)">
           <span>{formatShots(article)}</span>
           <span>Open story</span>
         </div>

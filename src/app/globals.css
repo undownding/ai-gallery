@@ -92,11 +92,12 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
-	border-radius: 28px;
-	background: var(--surface);
-	border: 1px solid var(--border);
+	border-radius: 0.75rem;
+	background: color-mix(in srgb, var(--surface) 30%, transparent);
+	border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 	padding: 1rem;
 	text-align: left;
+	backdrop-filter: blur(12px) saturate(150%);
 	transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 	color: inherit;
 }
@@ -114,7 +115,7 @@ body {
 
 .card-media {
 	position: relative;
-	border-radius: 24px;
+	border-radius: 0.6rem;
 	overflow: hidden;
 	background: rgba(0, 0, 0, 0.08);
 	aspect-ratio: 3 / 4;
