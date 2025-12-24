@@ -95,25 +95,39 @@ function useAnimatedText(text: string) {
     // 如果是首次显示或文本被重置（新文本不是旧文本的延续），清空并重新开始
     if (previousText === '' || newText.length < previousText.length || !newText.startsWith(previousText)) {
       if (displayedLengthRef.current > 0) {
-        instance.delete(displayedLengthRef.current).flush();
+        // 先删除现有文本，然后打字新文本
+        instance.delete(displayedLengthRef.current, { speed: 50 }).exec(() => {
+          if (newText) {
+            instance.type(newText, { speed: 30 }).exec(() => {
+              displayedLengthRef.current = newText.length;
+              previousTextRef.current = newText;
+            });
+          } else {
+            displayedLengthRef.current = 0;
+            previousTextRef.current = newText;
+          }
+        });
+      } else {
+        if (newText) {
+          instance.type(newText, { speed: 30 }).exec(() => {
+            displayedLengthRef.current = newText.length;
+            previousTextRef.current = newText;
+          });
+        }
       }
-      if (newText) {
-        instance.type(newText).flush();
-      }
-      displayedLengthRef.current = newText.length;
-      previousTextRef.current = newText;
     } else if (newText.length > displayedLengthRef.current) {
-      // 只追加新增的文本部分
+      // 只追加新增的文本部分，TypeIt 会自动排队执行
       const textToAdd = newText.slice(displayedLengthRef.current);
-      instance.type(textToAdd).flush();
-      displayedLengthRef.current = newText.length;
-      previousTextRef.current = newText;
+      instance.type(textToAdd, { speed: 30 }).exec(() => {
+        displayedLengthRef.current = newText.length;
+        previousTextRef.current = newText;
+      });
     }
   }, [text, instance]);
 
   const el = (
     <TypeIt
-      options={{ cursor: false }}
+      options={{ cursor: false, speed: 30 }}
       getAfterInit={(i: any) => {
         setInstance(i);
         return i;
