@@ -76,13 +76,6 @@ body {
 	background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.35) 100%);
 }
 
-@media (min-width: 1024px) {
-	.app-shell {
-		height: 100vh;
-		overflow: hidden;
-	}
-}
-
 .feed-grid {
 	display: grid;
 	gap: 1.5rem;
@@ -99,12 +92,11 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
-	border-radius: 0.75rem;
-	background: color-mix(in srgb, var(--surface) 30%, transparent);
-	border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+	border-radius: 28px;
+	background: var(--surface);
+	border: 1px solid var(--border);
 	padding: 1rem;
 	text-align: left;
-	backdrop-filter: blur(12px) saturate(150%);
 	transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 	color: inherit;
 }
@@ -120,9 +112,39 @@ body {
 	outline-offset: 4px;
 }
 
+.article-card-skeleton {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	border-radius: 28px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	padding: 1rem;
+	text-align: left;
+	color: inherit;
+	pointer-events: none;
+	user-select: none;
+	animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.article-card-skeleton:hover {
+	transform: none;
+	box-shadow: none;
+	border-color: var(--border);
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
+
 .card-media {
 	position: relative;
-	border-radius: 0.6rem;
+	border-radius: 24px;
 	overflow: hidden;
 	background: rgba(0, 0, 0, 0.08);
 	aspect-ratio: 3 / 4;

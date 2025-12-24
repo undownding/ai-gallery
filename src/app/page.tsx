@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { ArticleCard, formatDate } from "@/components/article-card";
+import { ArticleCardSkeleton } from "@/components/article-card-skeleton";
 import { AuthStatus } from "@/components/auth-status";
 import {
   AUTH_SESSION_EVENT,
@@ -167,6 +168,22 @@ export default function Home() {
               {articles.map((article) => (
                 <ArticleCard key={article.id} article={article} onSelect={handleCardSelect} />
               ))}
+              {loading && (
+                <>
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                </>
+              )}
+              {loading && articles.length === 0 && (
+                <>
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                  <ArticleCardSkeleton />
+                </>
+              )}
             </div>
 
             {error && <div className="alert-card">{error}</div>}
@@ -178,7 +195,6 @@ export default function Home() {
             )}
 
             <div className="flex flex-col items-center gap-3 text-xs text-(--muted)">
-              {loading && <span>Loading more stories...</span>}
               {hasMore && !loading && (
                 <button
                   type="button"
