@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
-import { Think } from "@ant-design/x";
+import { Think, XProvider } from "@ant-design/x";
 import { SyncOutlined } from "@ant-design/icons";
 import type { AspectRatio, ImageSize } from "@/lib/gemini";
 import {
@@ -978,17 +978,35 @@ function GeneratePageContent() {
 
               <aside className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2 lg:self-stretch lg:min-h-0">
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
-                  <Think
-                    title={status === "running" ? "Deep thinking" : "Complete thinking"}
-                    loading={
-                      status === "running" ? (
-                        <SyncOutlined style={{ fontSize: 12, animation: "spin 1s linear infinite" }} />
-                      ) : false
-                    }
-                    blink={status === "running"}
+                  <XProvider
+                    theme={{
+                      token: {
+                        colorTextBase: "var(--foreground)",
+                        colorText: "var(--foreground)",
+                        colorTextSecondary: "var(--muted)",
+                        colorTextDescription: "var(--foreground)",
+                        colorBorder: "var(--border)",
+                      },
+                      components: {
+                        Think: {
+                          colorTextBlinkDefault: "var(--muted)",
+                          colorTextBlink: "var(--foreground)",
+                        },
+                      },
+                    }}
                   >
-                    {animatedText}
-                  </Think>
+                    <Think
+                      title={status === "running" ? "Deep thinking" : "Complete thinking"}
+                      loading={
+                        status === "running" ? (
+                          <SyncOutlined style={{ fontSize: 12, animation: "spin 1s linear infinite" }} />
+                        ) : false
+                      }
+                      blink={status === "running"}
+                    >
+                      {animatedText}
+                    </Think>
+                  </XProvider>
                 </div>
 
                 <div className="relative overflow-hidden rounded-[32px] border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--background)] p-6 shadow-soft">
