@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import TypeIt from "typeit-react";
 
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
@@ -82,62 +81,72 @@ type DoneEventPayload = {
 };
 
 function useAnimatedText(text: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [instance, setInstance] = useState<any>(null);
+  const [displayedText, setDisplayedText] = useState("");
+  const previousTextRef = useRef("");
   const displayedLengthRef = useRef(0);
-  const previousTextRef = useRef('');
+  const animationFrameRef = useRef<number | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!instance) return;
-    
-    const newText = text || "The narration feed prints here once the stream starts.";
+    const targetText = text || "The narration feed prints here once the stream starts.";
     const previousText = previousTextRef.current;
-    
-    // 如果是首次显示或文本被重置（新文本不是旧文本的延续），清空并重新开始
-    if (previousText === '' || newText.length < previousText.length || !newText.startsWith(previousText)) {
-      if (displayedLengthRef.current > 0) {
-        // 先删除现有文本，然后打字新文本
-        instance.delete(displayedLengthRef.current, { speed: 50 }).exec(() => {
-          if (newText) {
-            instance.type(newText, { speed: 30 }).exec(() => {
-              displayedLengthRef.current = newText.length;
-              previousTextRef.current = newText;
-            });
-          } else {
-            displayedLengthRef.current = 0;
-            previousTextRef.current = newText;
-          }
-        });
-      } else {
-        if (newText) {
-          instance.type(newText, { speed: 30 }).exec(() => {
-            displayedLengthRef.current = newText.length;
-            previousTextRef.current = newText;
-          });
-        }
-      }
-    } else if (newText.length > displayedLengthRef.current) {
-      // 只追加新增的文本部分，TypeIt 会自动排队执行
-      const textToAdd = newText.slice(displayedLengthRef.current);
-      instance.type(textToAdd, { speed: 30 }).exec(() => {
-        displayedLengthRef.current = newText.length;
-        previousTextRef.current = newText;
-      });
+
+    // 如果文本被重置（新文本不是旧文本的延续），立即重置显示
+    if (
+      previousText === "" ||
+      targetText.length < previousText.length ||
+      !targetText.startsWith(previousText)
+    ) {
+      displayedLengthRef.current = 0;
+      setDisplayedText("");
+      previousTextRef.current = targetText;
+    } else {
+      previousTextRef.current = targetText;
     }
-  }, [text, instance]);
 
-  const el = (
-    <TypeIt
-      options={{ cursor: false, speed: 30 }}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      getAfterInit={(i: any) => {
-        setInstance(i);
-        return i;
-      }}
-    />
-  );
+    // 清理之前的动画帧
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-  return el;
+    const animate = (currentTime: number) => {
+      const targetLength = targetText.length;
+      const currentLength = displayedLengthRef.current;
+
+      if (currentLength < targetLength) {
+        // 控制打字速度：每 30ms 增加字符
+        if (currentTime - lastUpdateTimeRef.current >= 30) {
+          const remaining = targetLength - currentLength;
+          // 每次增加 1-3 个字符，根据剩余字符数动态调整
+          const step = remaining > 10 ? Math.min(3, Math.ceil(remaining / 10)) : 1;
+          const newLength = Math.min(targetLength, currentLength + step);
+          displayedLengthRef.current = newLength;
+          setDisplayedText(targetText.slice(0, newLength));
+          lastUpdateTimeRef.current = currentTime;
+        }
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        // 确保最终文本完整显示
+        if (displayedText !== targetText) {
+          setDisplayedText(targetText);
+        }
+        animationFrameRef.current = null;
+      }
+    };
+
+    // 开始动画
+    lastUpdateTimeRef.current = performance.now();
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [text, displayedText]);
+
+  return <span>{displayedText}</span>;
 }
 
 export default function GeneratePage() {
@@ -748,8 +757,11 @@ export default function GeneratePage() {
               {sessionError && <p className="mt-3 text-xs text-[var(--accent)]">{sessionError}</p>}
             </div>
           ) : (
-            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-              <form className="flex flex-col gap-6" onSubmit={(event) => event.preventDefault()}>
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+              <form
+                className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2"
+                onSubmit={(event) => event.preventDefault()}
+              >
                 <FieldGroup
                   label="Image selection"
                   description="Optional. Attach up to eight guiding shots. Files persist immediately and stay in a single scroll row."
@@ -855,7 +867,7 @@ export default function GeneratePage() {
                 </div>
               </form>
 
-              <aside className="flex flex-col gap-6">
+              <aside className="min-w-0 flex flex-col gap-6 lg:w-1/2 lg:basis-1/2">
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
                   <Think
                     title={status === "running" ? "Deep thinking" : "Complete thinking"}
