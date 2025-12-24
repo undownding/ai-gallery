@@ -808,6 +808,7 @@ export default function GeneratePage() {
                 <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-soft">
                   <Think
                     title="Think"
+                    expanded={false}
                     loading={
                       status === "running" ? (
                         <svg
@@ -827,13 +828,14 @@ export default function GeneratePage() {
                   >
                     <div
                       ref={thinkScrollRef}
-                      className="mt-2 h-72 overflow-y-auto text-sm text-[var(--foreground)] thin-scrollbar"
+                      className="mt-2 overflow-y-auto text-sm text-[var(--foreground)] thin-scrollbar"
                     >
                       {streamedText ? (
                         <StableMarkdownTypewriter
                           stableKey={typewriterSessionKey}
                           motionProps={{
                             className: "space-y-2 text-sm leading-relaxed text-[var(--foreground)]",
+                            style: { overflowY: "visible" },
                             onAnimationComplete: () => {
                               console.log("Typewriter finished");
                             },
