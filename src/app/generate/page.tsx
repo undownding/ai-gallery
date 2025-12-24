@@ -437,7 +437,9 @@ function GeneratePageContent() {
         const article = await loadArticleForPrefill(prefillArticleId);
         if (!active) return;
 
-        setPrompt(article.text ?? "");
+        if (prefillMode === "rerun") {
+          setPrompt(article.text ?? "");
+        }
         const assets = prefillMode === "remix" ? article.media : article.sources;
         setReferenceUploads(toReferenceAssets(assets, article.id));
         prefillAppliedKeyRef.current = applyKey;

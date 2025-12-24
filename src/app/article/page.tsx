@@ -530,13 +530,7 @@ function ArticleDetailPageContent() {
 }
 
 function ArticlePageFallback() {
-  return (
-    <div className="app-shell px-4 pb-20 pt-10 sm:px-6 lg:px-12">
-      <div className="mx-auto w-full max-w-4xl rounded-2xl border border-(--border)/40 bg-(--surface)/30 p-8 text-center text-sm text-(--muted) backdrop-blur-md backdrop-saturate-150">
-        Loading story…
-      </div>
-    </div>
-  );
+  return <div className="app-shell" />;
 }
 
 function DetailStat({ label, value }: { label: string; value: string | number }) {
