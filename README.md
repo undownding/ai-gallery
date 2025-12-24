@@ -1,75 +1,127 @@
-# OpenNext Starter
+# AI Gallery
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A waterfall feed of community photo stories inspired by Xiaohongshu. Generate AI-powered images using Google Gemini and share them with the community.
+
+## Features
+
+- **AI Image Generation**: Create unique images using Google Gemini with customizable prompts, aspect ratios, and resolutions
+- **Real-time Streaming**: Watch the AI think and generate images in real-time with SSE (Server-Sent Events)
+- **Reference Images**: Upload up to 8 reference images to guide the AI generation
+- **Community Gallery**: Browse and discover AI-generated stories in a beautiful waterfall feed
+- **GitHub Authentication**: Sign in with GitHub to create and manage your stories
+- **Dark/Light Mode**: Toggle between themes for comfortable viewing
+- **Responsive Design**: Optimized for both desktop and mobile devices
+
+## Tech Stack
+
+- **Framework**: [Next.js 15](https://nextjs.org) with App Router and Turbopack
+- **Frontend**: React 19, TypeScript, Tailwind CSS 4
+- **Styling**: Custom CSS variables with glassmorphism design
+- **AI Integration**: Google Gemini API for image generation
+- **Authentication**: GitHub OAuth
+- **Markdown**: react-markdown with typewriter animation effect
 
 ## Getting Started
 
-Read the documentation at https://opennext.js.org/cloudflare.
+### Prerequisites
 
-## Develop
+- Node.js 18+
+- npm or pnpm
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/ai-gallery.git
+cd ai-gallery
+
+# Install dependencies
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file with the following variables:
+
+```env
+# API Configuration
+NEXT_PUBLIC_API_URL=your_api_url
+
+# R2 Storage (for image previews)
+NEXT_PUBLIC_R2_PUBLIC_URL=your_r2_public_url
+
+# GitHub OAuth (for local development)
+GITHUB_CLIENT_ID=your_github_client_id
+```
+
+### Development
 
 Run the Next.js development server:
 
 ```bash
 npm run dev
-# or similar package manager command
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
-
-```bash
-npm run preview
-# or similar package manager command
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── page.tsx           # Home page - Gallery feed
+│   ├── article/           # Article detail page
+│   ├── generate/          # AI image generation playground
+│   └── auth/              # GitHub OAuth callback
+├── components/            # Reusable UI components
+│   ├── article-card.tsx   # Gallery card component
+│   ├── auth-status.tsx    # Authentication status display
+│   ├── theme-toggle.tsx   # Dark/light mode toggle
+│   └── stable-markdown-typewriter.tsx
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utility functions and API clients
+│   ├── http.ts           # HTTP utilities
+│   ├── client-session.ts # Session management
+│   ├── gemini.ts         # Gemini API types
+│   └── uploads-client.ts # File upload utilities
+└── types/                # TypeScript type definitions
 ```
 
-## Deploy
+## Pages
 
-Deploy the application to Cloudflare:
+### Home (`/`)
+The main gallery page displaying a waterfall feed of community stories with infinite scroll.
+
+### Generate (`/generate`)
+The AI playground where authenticated users can:
+- Write prompts describing the desired image
+- Upload reference images for style guidance
+- Configure aspect ratio (1:1, 4:5, 3:4, 16:9, 21:9)
+- Choose resolution (1K, 2K, 4K)
+- Watch real-time generation with AI narration
+
+### Article Detail (`/article?id=...`)
+View individual stories with:
+- Image gallery with swipe navigation
+- Author information
+- Prompt details
+- Visibility controls (for story owners)
+
+## Scripts
 
 ```bash
-npm run deploy
-# or similar package manager command
+npm run dev      # Start development server with Turbopack
+npm run build    # Build for production
+npm run start    # Start production server
+npm run lint     # Run ESLint
 ```
-
-## Authentication & Database
-
-GitHub sign-in is now available out of the box. To enable it locally and in Cloudflare, complete these steps:
-
-1. [Register a GitHub OAuth app](https://github.com/settings/developers) with the callback URL `https://<your-domain>/auth/github/callback` (or `http://localhost:3000/auth/github/callback` for local testing).
-2. Store the following secrets so the Worker can read them at runtime:
-	- `GITHUB_CLIENT_ID`
-	- `GITHUB_CLIENT_SECRET`
-	- `AUTH_JWT_SECRET` (any sufficiently long random string, used to sign access/refresh tokens)
-	You can add them via `wrangler secret put <NAME>` or the dashboard. When running `npm run dev`, regular environment variables work as well.
-3. Apply the latest D1 migrations so the new `users` table exists:
-
-```bash
-wrangler d1 migrations apply ai-gallery --remote
-# or run the command without --remote against your local DB binding
-```
-
-### Auth API overview
-
-The client now communicates with the API defined by `NEXT_PUBLIC_API_URL` via `buildApiUrl()`:
-
-- `GET /auth/github` — redirects the popup window to GitHub using the provided `redirectTo` callback URL.
-- `POST /auth/github/token` — exchanges the OAuth `code` for access/refresh tokens and the initial user payload.
-- `GET /users/me` — returns the current user when a valid `Authorization: Bearer <accessToken>` header is supplied.
-- `POST /auth/token` — refreshes the access/refresh token pair when a valid refresh token is still active.
-
-The built-in UI now opens GitHub in a popup and writes the returned tokens to `localStorage`, so no first-party cookies are required.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Tailwind CSS](https://tailwindcss.com)
+- [Google Gemini API](https://ai.google.dev)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+MIT
