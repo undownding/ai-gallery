@@ -14,8 +14,8 @@
 		"next": "15.5.9",
 		"react": "19.1.4",
 		"react-dom": "19.1.4",
-		"react-markdown": "^10.1.0",
-		"react-markdown-typewriter": "^1.1.4"
+		"react-markdown-typewriter": "^1.1.4",
+		"typeit-react": "^2.7.8"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",

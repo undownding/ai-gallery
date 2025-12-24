@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import TypeIt from "typeit-react";
 
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeToggle, useThemePreference } from "@/components/theme-toggle";
@@ -80,6 +81,49 @@ type DoneEventPayload = {
   response?: unknown;
 };
 
+function useAnimatedText(text: string) {
+  const [instance, setInstance] = useState<any>(null);
+  const displayedLengthRef = useRef(0);
+  const previousTextRef = useRef('');
+
+  useEffect(() => {
+    if (!instance) return;
+    
+    const newText = text || "The narration feed prints here once the stream starts.";
+    const previousText = previousTextRef.current;
+    
+    // 如果是首次显示或文本被重置（新文本不是旧文本的延续），清空并重新开始
+    if (previousText === '' || newText.length < previousText.length || !newText.startsWith(previousText)) {
+      if (displayedLengthRef.current > 0) {
+        instance.delete(displayedLengthRef.current).flush();
+      }
+      if (newText) {
+        instance.type(newText).flush();
+      }
+      displayedLengthRef.current = newText.length;
+      previousTextRef.current = newText;
+    } else if (newText.length > displayedLengthRef.current) {
+      // 只追加新增的文本部分
+      const textToAdd = newText.slice(displayedLengthRef.current);
+      instance.type(textToAdd).flush();
+      displayedLengthRef.current = newText.length;
+      previousTextRef.current = newText;
+    }
+  }, [text, instance]);
+
+  const el = (
+    <TypeIt
+      options={{ cursor: false }}
+      getAfterInit={(i: any) => {
+        setInstance(i);
+        return i;
+      }}
+    />
+  );
+
+  return el;
+}
+
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">("");
@@ -104,6 +148,7 @@ export default function GeneratePage() {
   const [themeMode, setThemeMode] = useThemePreference();
   const [streamedText, setStreamedText] = useState<string>("");
   const [generationDuration, setGenerationDuration] = useState(0);
+  const animatedText = useAnimatedText(streamedText || "The narration feed prints here once the stream starts.");
   const dismissError = useCallback(() => setErrorMessage(null), []);
 
   const pathname = usePathname();
@@ -801,13 +846,11 @@ export default function GeneratePage() {
                     loading={
                       status === "running" ? (
                         <SyncOutlined style={{ fontSize: 12, animation: "spin 1s linear infinite" }} />
-                      ) : (
-                        false
-                      )
+                      ) : false
                     }
                     blink={status === "running"}
                   >
-                    {streamedText || "The narration feed prints here once the stream starts."}
+                    {animatedText}
                   </Think>
                 </div>
 
